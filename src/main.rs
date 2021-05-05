@@ -9,7 +9,7 @@ static COMPILED: &str = ".hmmm";
 static UNCOMPILED: &str = ".hb";
 
 lazy_static!{
-    static ref LOOKUP_MAP: HashMap<&'static str, u8> = vec![
+    static ref INSTRUCTION_TABLE: Vec<(&'static str, &'static str, &'static str)> = vec![
         ("0000 0000 0000 0000", "1111 1111 1111 1111", "halt"),
         ("0000 0000 0000 0001", "1111 0000 1111 1111", "read"),
         ("0000 0000 0000 0010", "1111 0000 1111 1111", "write"),
@@ -38,16 +38,68 @@ lazy_static!{
         ("1111 0000 0000 0000", "1111 0000 0000 0000", "jltzn"),
         ("0000 0000 0000 0000", "0000 0000 0000 0000", "data"),
     ].into_iter().collect();
+
+    static ref REGISTER_LOOKUP: HashMap<&'static str, &'static str> = vec![
+        ("r0", "0000"), 
+        ("r1", "0001"),
+        ("r2", "0010"), 
+        ("r3", "0011"),
+        ("r4", "0100"),
+        ("r5", "0101"),
+        ("r6", "0110"),
+        ("r7", "0111"),
+        ("r8", "1000"),
+        ("r9", "1001"),
+        ("r10", "1010"),
+        ("r11", "1011"),
+        ("r12", "1100"),
+        ("r13", "1101"),
+        ("r14", "1110"),
+        ("r15", "1111"),
+    ].into_iter().collect();
 }
 
-let d = {"r0":"0000", "r1":"0001", "r2":"0010", "r3":"0011",
-"r4":"0100", "r5":"0101", "r6":"0110", "r7":"0111",
-"r8":"1000", "r9":"1001", "r10":"1010", "r11":"1011",
-"r12":"1100", "r13":"1101", "r14":"1110", "r15":"1111", 
-"R0":"0000", "R1":"0001", "R2":"0010", "R3":"0011",
-"R4":"0100", "R5":"0101", "R6":"0110", "R7":"0111",
-"R8":"1000", "R9":"1001", "R10":"1010", "R11":"1011",
-"R12":"1100", "R13":"1101", "R14":"1110", "R15":"1111"}
+/// Struct for all instructions, to make it easier to
+/// consolidate ones with aliases and order all of the
+/// matching and masking strings
+#[derive(PartialEq, Eq)]
+pub struct Instruction {
+    /// List of all names, with the first name being
+    /// used as the default
+    names: Vec<String>,
+    /// String that will match an instruction from
+    /// a .hmmm file
+    match_string: String,
+    /// String that will match where additional information
+    /// such as numbers or registers lay
+    mask_string: String,
+    /// Argument lookup:
+    /// 
+    /// "r" : Register
+    /// 
+    /// "s" : Signed 8-bit decimal
+    /// 
+    /// "u" : Unsigned 8-bit decimal
+    /// 
+    /// "n" : Sign/Unsigned 16-bit hex/decimal
+    /// 
+    /// "z" : Skip 4 bits of 0s
+    arguments: Vec<String>
+}
+
+impl Instruction {
+    pub fn new(names: Vec<String>, match_string: String, mask_string: String, arguments: Vec<String>) -> Instruction {
+        
+        Instruction {
+            names: names,
+            match_string: match_string,
+            mask_string: mask_string,
+            arguments: arguments,
+        }
+    }
+}
+
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
