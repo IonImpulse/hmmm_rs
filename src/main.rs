@@ -573,6 +573,7 @@ fn read_compiled_hmm(raw_binary: Vec<String>) -> Vec<Instruction> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let mut output_file = String::from("");
 
     if args.len() == 1 {
         panic!("Please specify a file to compile/run!")
@@ -598,9 +599,14 @@ fn main() {
                 panic!("Please specify an output file!");
             }
         } else if args.len() == 4 {
-            if args[0] == "-o" {}
+            if args[2] == "-o" {
+                output_file = args[3];
+            }
         }
         
+        // If compiles without error, print out a success
+        // message and the first 9 lines, with the last being
+        // printed also if there are > 9 lines
         println!("==================================");
         println!("====  COMPILATION SUCCESSFUL  ====");
         println!("==================================");
@@ -617,7 +623,17 @@ fn main() {
             
         }
 
+        // Output file if given path
+        if output_file != "" {
+            if output_file.ends_with(UNCOMPILED) {
 
+            } else if output_file.ends_with(COMPILED) {
 
+            } else {
+                println!("No output type specified, writing as binary...");
+                
+
+            }
+        }
     }
 }
