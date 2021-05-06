@@ -1,7 +1,8 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::*;
+use std::process::*;
 
+use std::*;
 use lazy_static::lazy_static;
 
 static UNCOMPILED: &str = ".hmmm";
@@ -231,6 +232,8 @@ pub enum CompileErr {
     InvalidUnsignedNumber,
     InvalidNumber,
     CorruptedBinary,
+    LineNumberNotPresent,
+    InvalidLineNumber,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -268,7 +271,15 @@ impl Instruction {
             return Err(CompileErr::TooManyArguments);
         } else if instruction_args.len() < instruction_type.arguments.len() {
             return Err(CompileErr::TooFewArguments);
+        } else if instruction_type.arguments.len() == 0 {
+            // If it's a single command, just return it
+            return Ok(Instruction {
+                instruction_type: instruction_type.clone(),
+                text_contents: String::from(instruction_type.clone().names[0]),
+                binary_contents: instruction_type.clone().match_string.split(" ").map(|a| String::from(a)).collect(),
+            });
         }
+
         let mut text_contents: String = String::from(instruction_args[0]);
 
         if instruction_args.len() == 2 {
@@ -316,7 +327,7 @@ impl Instruction {
                         return Err(CompileErr::InvalidRegister);
                     }
 
-                    binary_string = format!("{:08b}", register_number.unwrap());
+                    binary_string = format!("{:04b}", register_number.unwrap());
                 } else {
                     return Err(CompileErr::InvalidArgumentType);
                 }
@@ -350,12 +361,12 @@ impl Instruction {
             } else if current_instruction_type == 'z' {
                 binary_string = "0000".to_string();
             }
-
+            
             if binary_string.len() == 4 {
                 binary_contents[slot_to_fill] = binary_string;
             } else if binary_string.len() == 8 {
                 binary_contents[slot_to_fill] = String::from(binary_string.get(0..4).unwrap());
-                binary_contents[slot_to_fill + 1] = String::from(binary_string.get(0..4).unwrap());
+                binary_contents[slot_to_fill + 1] = String::from(binary_string.get(4..8).unwrap());
             } else {
                 binary_contents[slot_to_fill] = String::from(binary_string.get(0..4).unwrap());
                 binary_contents[slot_to_fill + 1] = String::from(binary_string.get(4..8).unwrap());
@@ -484,45 +495,60 @@ fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     Ok(output_vec)
 }
 
+fn raise_compile_error(line_num: usize, error: CompileErr, raw_line: &String, line_parts: Vec<String>) {
+    let args: String = line_parts[2..].join(" ");
+    println!("==================================");
+    println!("==== COMPILATION UNSUCCESSFUL ====");
+    println!("==================================\n");
+    println!("ERROR ON LINE {}: {:?}", line_num, error);
+    println!("Raw: \"{}\"", raw_line);
+    println!("===========================================");
+    println!("||           Interpreted As: ");
+    println!("|| Line | Command | Arguments ");
+    println!("|| {:4} | {:7} | {:15}", line_parts[0], line_parts[1], args);
+    println!("===========================================");
+    println!("Exiting...");
+    exit(1); 
+}
+
 fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
     let mut line_counter = 0;
     let mut compiled_text: Vec<Instruction> = Vec::new();
 
     for (index, line) in uncompiled_text.iter().enumerate() {
-        println!("{}) [{}]", index, line);
         if !(line.trim().starts_with("#")) && line.len() > 2 {
-            if line.starts_with(line_counter.to_string().as_str()) {
-                let mut line_parts: Vec<String> = line.split(&[',', ' '][..]).map(|a| String::from(a)).collect();
-                
-                line_parts.remove(0);
+            let mut line_parts: Vec<String> = line.split(&[',', ' '][..]).map(|a| String::from(a)).collect();
+            
+            let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
+            
+            let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
 
-                let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
-
-                if comment_part.is_some() {
-                    line_parts.drain(comment_part.unwrap()..);
-                }
-
-                let line_parts: Vec<String> = String::from(line_parts.join(" ").trim()).split_whitespace().map(|a| String::from(a)).collect();
-
-                let cleaned_line = String::from(line_parts.join(" "));
-                
-                println!("Cleaned => [{}]", cleaned_line);
-
-                let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
-
-                if next_instruction.is_err() {
-                    panic!("{:?}", next_instruction.unwrap_err())
-                }
-
-                compiled_text.push(next_instruction.unwrap());
-
-                line_counter += 1;
-            } else {
-                panic!(
-                    "Error on line {}: Line counter does not match line of code!",
-                    index
-                )
+            if comment_part.is_some() {
+                line_parts.drain(comment_part.unwrap()..);
             }
+
+            let line_parts: Vec<String> = String::from(line_parts.join(" ").trim()).split_whitespace().map(|a| String::from(a)).collect();
+
+            let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
+            
+            if line_number.is_err() {
+                raise_compile_error(index, CompileErr::LineNumberNotPresent, line, line_parts);
+            } else {
+                if line_number.unwrap() != line_counter {
+                    raise_compile_error(index, CompileErr::InvalidLineNumber, line, line_parts);
+                } else {
+                    let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
+                
+                    if next_instruction.is_err() {
+                        raise_compile_error(index, next_instruction.unwrap_err(), line, line_parts);
+                    } else {
+                        compiled_text.push(next_instruction.unwrap());
+    
+                        line_counter += 1;
+                    }
+                }
+            } 
+            
         }
     }
 
@@ -574,10 +600,24 @@ fn main() {
         } else if args.len() == 4 {
             if args[0] == "-o" {}
         }
+        
+        println!("==================================");
+        println!("====  COMPILATION SUCCESSFUL  ====");
+        println!("==================================");
+        println!("Line | Command | Arguments");
 
         for (index, line) in compiled_text.iter().enumerate() {
-            println!("{}) {:18} ==> {}", index, line.text_contents, line.binary_contents.join(" "));
+            if index > 9 {
+                println!(".......");
+                let last = compiled_text.last().unwrap();
+                println!("{:4} | {:7} | {:15} ==>    {}", compiled_text.len() - 1, last.instruction_type.names[0], last.text_contents, last.binary_contents.join(" "));
+                break;
+            }
+            println!("{:4} | {:7} | {:15} ==>    {}", index, line.instruction_type.names[0], line.text_contents, line.binary_contents.join(" "));
+            
         }
+
+
 
     }
 }
