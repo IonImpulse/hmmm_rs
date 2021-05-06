@@ -37,19 +37,19 @@ lazy_static! {
             vec!["setn"],
             "0001 0000 0000 0000",
             "1111 0000 0000 0000",
-            "r"
+            "rs"
         ),
         InstructionType::new(
             vec!["loadn"],
             "0010 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["storen"],
             "0011 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["loadr"],
@@ -61,25 +61,25 @@ lazy_static! {
             vec!["storer"],
             "0100 0000 0000 0001",
             "1111 0000 0000 0000",
-            ""
+            "rr"
         ),
         InstructionType::new(
             vec!["popr"],
             "0100 0000 0000 0010",
             "1111 0000 0000 1111",
-            ""
+            "rr"
         ),
         InstructionType::new(
             vec!["pushr"],
             "0100 0000 0000 0011",
             "1111 0000 0000 1111",
-            ""
+            "rr"
         ),
         InstructionType::new(
             vec!["addn"],
             "0101 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rs"
         ),
         InstructionType::new(
             vec!["nop"],
@@ -91,85 +91,85 @@ lazy_static! {
             vec!["copy"],
             "0110 0000 0000 0000",
             "1111 0000 0000 1111",
-            ""
+            "rr"
         ),
         InstructionType::new(
             vec!["add"],
             "0110 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rrr"
         ),
         InstructionType::new(
             vec!["neg"],
             "0111 0000 0000 0000",
             "1111 0000 1111 0000",
-            ""
+            "rzr"
         ),
         InstructionType::new(
             vec!["sub"],
             "0111 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rrr"
         ),
         InstructionType::new(
             vec!["mul"],
             "1000 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rrr"
         ),
         InstructionType::new(
             vec!["div"],
             "1001 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rrr"
         ),
         InstructionType::new(
             vec!["mod"],
             "1010 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "rrr"
         ),
         InstructionType::new(
             vec!["jumpn"],
             "1011 0000 0000 0000",
             "1111 1111 0000 0000",
-            ""
+            "zu"
         ),
         InstructionType::new(
             vec!["calln"],
             "1011 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["jeqzn"],
             "1100 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["jnezn"],
             "1101 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["jgtzn"],
             "1110 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["jltzn"],
             "1111 0000 0000 0000",
             "1111 0000 0000 0000",
-            ""
+            "ru"
         ),
         InstructionType::new(
             vec!["data"],
             "0000 0000 0000 0000",
             "0000 0000 0000 0000",
-            ""
+            "n"
         ),
     ]
     .into_iter()
@@ -243,14 +243,11 @@ pub struct Instruction {
 impl Instruction {
     pub fn new_from_text(line_contents: &str) -> Result<Instruction, CompileErr> {
         // Split on both "," and " "
-        let contents_list: Vec<&str> = line_contents.split(&[',', ' '][..]).collect();
-
-        println!("{:?}", contents_list);
+        let contents_list: Vec<&str> = line_contents.split(" ").collect();
 
         let mut instruction_type: Option<InstructionType> = None;
 
         for instruction in INSTRUCTION_LOOKUP.clone() {
-            println!("{:?}",instruction.names);
             if instruction.names.contains(&contents_list[0]) {
                 instruction_type = Some(instruction);
                 break;
@@ -270,7 +267,7 @@ impl Instruction {
         if instruction_args.len() > instruction_type.arguments.len() {
             return Err(CompileErr::TooManyArguments);
         } else if instruction_args.len() < instruction_type.arguments.len() {
-            return Err(CompileErr::TooManyArguments);
+            return Err(CompileErr::TooFewArguments);
         }
         let mut text_contents: String = String::from(instruction_args[0]);
 
@@ -313,7 +310,7 @@ impl Instruction {
 
             if current_instruction_type == 'r' {
                 if arg.to_lowercase().starts_with("r") {
-                    let register_number = arg.parse::<u8>();
+                    let register_number = arg[1..].parse::<u8>();
 
                     if register_number.is_err() {
                         return Err(CompileErr::InvalidRegister);
@@ -381,6 +378,7 @@ impl Instruction {
             .collect();
 
         let mut instruction_type: Option<InstructionType> = None;
+
         let line_split: Vec<String> = line_contents.split(" ").map(|a| String::from(a)).collect();
 
         for instruction in INSTRUCTION_LOOKUP.clone().into_iter() {
@@ -487,24 +485,26 @@ fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
 }
 
 fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
-    let line_counter = 0;
+    let mut line_counter = 0;
     let mut compiled_text: Vec<Instruction> = Vec::new();
 
     for (index, line) in uncompiled_text.iter().enumerate() {
         println!("{}) [{}]", index, line);
-        if !(line.trim().starts_with("#")) {
+        if !(line.trim().starts_with("#")) && line.len() > 2 {
             if line.starts_with(line_counter.to_string().as_str()) {
-                let mut line_parts: Vec<String> = line.split(" ").map(|a| String::from(a)).collect();
+                let mut line_parts: Vec<String> = line.split(&[',', ' '][..]).map(|a| String::from(a)).collect();
                 
                 line_parts.remove(0);
 
                 let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
 
                 if comment_part.is_some() {
-                    line_parts.drain(comment_part.unwrap() - 1..);
+                    line_parts.drain(comment_part.unwrap()..);
                 }
 
-                let mut cleaned_line = String::from(line_parts.join(" ").trim());
+                let line_parts: Vec<String> = String::from(line_parts.join(" ").trim()).split_whitespace().map(|a| String::from(a)).collect();
+
+                let cleaned_line = String::from(line_parts.join(" "));
                 
                 println!("Cleaned => [{}]", cleaned_line);
 
@@ -514,7 +514,9 @@ fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
                     panic!("{:?}", next_instruction.unwrap_err())
                 }
 
-                compiled_text.push(next_instruction.unwrap())
+                compiled_text.push(next_instruction.unwrap());
+
+                line_counter += 1;
             } else {
                 panic!(
                     "Error on line {}: Line counter does not match line of code!",
