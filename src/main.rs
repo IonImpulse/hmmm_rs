@@ -1,7 +1,7 @@
+use clap::{App, Arg};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::process::*;
-use clap::{Arg, App};
 
 use lazy_static::lazy_static;
 use std::*;
@@ -488,7 +488,6 @@ impl Instruction {
         if instruction_args.len() > 0 {
             text_contents = String::from(instruction_args[0].clone());
         }
-        
         if instruction_args.len() > 1 {
             for i in 1..(instruction_args.len()) {
                 text_contents = format!("{}, {}", text_contents, instruction_args[i]);
@@ -503,6 +502,46 @@ impl Instruction {
     }
 }
 
+#[derive(Debug)]
+pub enum RuntimeErr {
+
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Simulator {
+    pub memory: Vec<Instruction>,
+    pub registers: Vec<i16>,
+    pub program_counter: usize,
+    pub last_program_counter: usize,
+}
+
+impl Simulator {
+    pub fn new(compiled_text: Vec<Instruction>) -> Self {
+        let data_left = 256 - compiled_text.len();
+        let mut memory: Vec<Instruction> = compiled_text;
+        let data = Instruction::new_from_binary("0000 0000 0000 0000").unwrap();
+
+        for _ in 0..data_left {
+            memory.push(data.clone());
+        }
+
+        let mut registers: Vec<i16> = Vec::new();
+        for _ in 0..16 {
+            registers.push(0 as i16);
+        }
+        Simulator {
+            memory: memory,
+            registers: registers,
+            program_counter: 0,
+            last_program_counter: 0,
+        }
+    }
+
+    pub fn step() -> Result<(), RuntimeErr> {
+        
+        Ok(())
+    }
+}
 fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     let reader = BufReader::new(File::open(path).expect("Cannot open file.txt"));
     let mut output_vec: Vec<String> = Vec::new();
@@ -598,7 +637,10 @@ fn write_uncompiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io
     let mut contents = String::from("");
 
     for (index, instruction) in compiled_text.iter().enumerate() {
-        contents = format!("{}{} {} {}\n", contents, index, instruction.instruction_type.names[0], instruction.text_contents);
+        contents = format!(
+            "{}{} {} {}\n",
+            contents, index, instruction.instruction_type.names[0], instruction.text_contents
+        );
     }
 
     contents = String::from(contents.trim_end());
@@ -703,18 +745,19 @@ fn main() {
 
         // Output file if given path
         if matches.value_of("output").is_some() {
-
             let output_file = matches.value_of("output").unwrap();
 
             if output_file.ends_with(UNCOMPILED) {
                 write_uncompiled_hmmm(output_file, compiled_text);
-
             } else if output_file.ends_with(COMPILED) {
                 write_compiled_hmmm(output_file, compiled_text);
-
             } else {
                 println!("No output type specified, writing as binary...");
             }
         }
+
+        // Run simulation if --no-run flag is not present
+
+        if matches.value_of("no-run").is_none() {}
     }
 }
