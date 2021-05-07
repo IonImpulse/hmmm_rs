@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::process::*;
+use clap::{Arg, App};
 
-use std::*;
 use lazy_static::lazy_static;
+use std::*;
 
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
@@ -276,7 +277,12 @@ impl Instruction {
             return Ok(Instruction {
                 instruction_type: instruction_type.clone(),
                 text_contents: String::from(instruction_type.clone().names[0]),
-                binary_contents: instruction_type.clone().match_string.split(" ").map(|a| String::from(a)).collect(),
+                binary_contents: instruction_type
+                    .clone()
+                    .match_string
+                    .split(" ")
+                    .map(|a| String::from(a))
+                    .collect(),
             });
         }
 
@@ -361,7 +367,6 @@ impl Instruction {
             } else if current_instruction_type == 'z' {
                 binary_string = "0000".to_string();
             }
-            
             if binary_string.len() == 4 {
                 binary_contents[slot_to_fill] = binary_string;
             } else if binary_string.len() == 8 {
@@ -432,7 +437,7 @@ impl Instruction {
         }
 
         let instruction_type = instruction_type.unwrap();
-        let mut text_contents = String::from(instruction_type.names[0]);
+        let mut text_contents = String::from("");
 
         let mut instruction_args: Vec<String> = Vec::new();
 
@@ -446,21 +451,33 @@ impl Instruction {
                 ));
                 slots_filled += 1;
             } else if arg_type == 's' {
-                let combined_binary = format!("{}{}",binary_contents[slots_filled],binary_contents[slots_filled + 1]);
+                let combined_binary = format!(
+                    "{}{}",
+                    binary_contents[slots_filled],
+                    binary_contents[slots_filled + 1]
+                );
                 instruction_args.push(format!(
                     "{}",
                     i8::from_str_radix(combined_binary.as_str(), 2).unwrap()
                 ));
                 slots_filled += 2;
             } else if arg_type == 'u' {
-                let combined_binary = format!("{}{}",binary_contents[slots_filled],binary_contents[slots_filled + 1]);
+                let combined_binary = format!(
+                    "{}{}",
+                    binary_contents[slots_filled],
+                    binary_contents[slots_filled + 1]
+                );
                 instruction_args.push(format!(
                     "{}",
                     u8::from_str_radix(combined_binary.as_str(), 2).unwrap()
                 ));
                 slots_filled += 2;
             } else if arg_type == 'n' {
-                let combined_binary = format!("{}{}",binary_contents[slots_filled],binary_contents[slots_filled + 1]);
+                let combined_binary = format!(
+                    "{}{}",
+                    binary_contents[slots_filled],
+                    binary_contents[slots_filled + 1]
+                );
                 instruction_args.push(format!(
                     "{}",
                     i32::from_str_radix(combined_binary.as_str(), 2).unwrap()
@@ -468,10 +485,12 @@ impl Instruction {
                 slots_filled += 3;
             }
         }
-        if instruction_args.len() == 1 {
-            text_contents = format!("{} {}", text_contents, instruction_args[0]);
-        } else {
-            for i in 0..(instruction_args.len()) {
+        if instruction_args.len() > 0 {
+            text_contents = String::from(instruction_args[0].clone());
+        }
+        
+        if instruction_args.len() > 1 {
+            for i in 1..(instruction_args.len()) {
                 text_contents = format!("{}, {}", text_contents, instruction_args[i]);
             }
         }
@@ -484,7 +503,6 @@ impl Instruction {
     }
 }
 
-
 fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     let reader = BufReader::new(File::open(path).expect("Cannot open file.txt"));
     let mut output_vec: Vec<String> = Vec::new();
@@ -495,7 +513,12 @@ fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     Ok(output_vec)
 }
 
-fn raise_compile_error(line_num: usize, error: CompileErr, raw_line: &String, line_parts: Vec<String>) {
+fn raise_compile_error(
+    line_num: usize,
+    error: CompileErr,
+    raw_line: &String,
+    line_parts: Vec<String>,
+) {
     let args: String = line_parts[2..].join(" ");
     println!("==================================");
     println!("==== COMPILATION UNSUCCESSFUL ====");
@@ -508,7 +531,7 @@ fn raise_compile_error(line_num: usize, error: CompileErr, raw_line: &String, li
     println!("|| {:4} | {:7} | {:15}", line_parts[0], line_parts[1], args);
     println!("===========================================");
     println!("Exiting...");
-    exit(1); 
+    exit(1);
 }
 
 fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
@@ -517,20 +540,23 @@ fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
 
     for (index, line) in uncompiled_text.iter().enumerate() {
         if !(line.trim().starts_with("#")) && line.len() > 2 {
-            let mut line_parts: Vec<String> = line.split(&[',', ' '][..]).map(|a| String::from(a)).collect();
-            
+            let mut line_parts: Vec<String> = line
+                .split(&[',', ' ', '\t'][..])
+                .map(|a| String::from(a))
+                .collect();
             let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
-            
             let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
 
             if comment_part.is_some() {
                 line_parts.drain(comment_part.unwrap()..);
             }
 
-            let line_parts: Vec<String> = String::from(line_parts.join(" ").trim()).split_whitespace().map(|a| String::from(a)).collect();
+            let line_parts: Vec<String> = String::from(line_parts.join(" ").trim())
+                .split_whitespace()
+                .map(|a| String::from(a))
+                .collect();
 
             let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
-            
             if line_number.is_err() {
                 raise_compile_error(index, CompileErr::LineNumberNotPresent, line, line_parts);
             } else {
@@ -538,24 +564,21 @@ fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
                     raise_compile_error(index, CompileErr::InvalidLineNumber, line, line_parts);
                 } else {
                     let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
-                
                     if next_instruction.is_err() {
                         raise_compile_error(index, next_instruction.unwrap_err(), line, line_parts);
                     } else {
                         compiled_text.push(next_instruction.unwrap());
-    
                         line_counter += 1;
                     }
                 }
-            } 
-            
+            }
         }
     }
 
     compiled_text
 }
 
-fn read_compiled_hmm(raw_binary: Vec<String>) -> Vec<Instruction> {
+fn read_compiled_hmmm(raw_binary: Vec<String>) -> Vec<Instruction> {
     let mut compiled_text: Vec<Instruction> = Vec::new();
 
     for line in raw_binary {
@@ -571,14 +594,68 @@ fn read_compiled_hmm(raw_binary: Vec<String>) -> Vec<Instruction> {
     compiled_text
 }
 
+fn write_uncompiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io::Result<()> {
+    let mut contents = String::from("");
+
+    for (index, instruction) in compiled_text.iter().enumerate() {
+        contents = format!("{}{} {} {}\n", contents, index, instruction.instruction_type.names[0], instruction.text_contents);
+    }
+
+    contents = String::from(contents.trim_end());
+
+    fs::write(path, contents)?;
+    Ok(())
+}
+
+fn write_compiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io::Result<()> {
+    let mut contents = String::from("");
+
+    for instruction in compiled_text {
+        let binary = instruction.binary_contents.join(" ");
+        contents = format!("{}{}\n", contents, binary);
+    }
+
+    contents = String::from(contents.trim_end());
+
+    fs::write(path, contents)?;
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut output_file = String::from("");
 
-    if args.len() == 1 {
-        panic!("Please specify a file to compile/run!")
-    } else if args.len() > 1 {
-        let file_path: &str = &args[1];
+    let matches = App::new("HMMM Compiler")
+        .version("1.0")
+        .author("Ethan Vazquez <edv121@outlook.com>")
+        .about("A compiler, decompiler, debugger, and simulator for Harvey Mudd Miniature Machine (HMMM)")
+        .arg(Arg::with_name("input")
+                 .short("i")
+                 .long("input")
+                 .takes_value(true)
+                 .help("Input .hmmm or .hb file"))
+        .arg(Arg::with_name("output")
+                 .short("o")
+                 .long("output")
+                 .takes_value(true)
+                 .help("Output location of either .hmmm or .hb file"))
+        .arg(Arg::with_name("debug")
+                 .short("d")
+                 .long("debug")
+                 .takes_value(false)
+                 .help("Use debug mode for stepping through simulator"))
+        .arg(Arg::with_name("no-run")
+                 .short("n")
+                 .long("no-run")
+                 .takes_value(false)
+                 .help("Do not simulate (run) the program on compilation"))
+        .get_matches();
+
+    if matches.value_of("input").is_none() {
+        println!("Error: Please specify a file to compile/run!");
+        exit(1);
+    } else {
+        let file_path: &str = matches.value_of("input").unwrap();
+
         let mut uncompiled_text: Vec<String> = Vec::new();
         let mut compiled_text: Vec<Instruction> = Vec::new();
 
@@ -589,21 +666,11 @@ fn main() {
         } else if file_path.ends_with(COMPILED) {
             let raw_binary = load_hmmm_file(file_path).unwrap();
 
-            compiled_text = read_compiled_hmm(raw_binary);
+            compiled_text = read_compiled_hmmm(raw_binary);
         } else {
             panic!("Unknown filetype!");
         }
 
-        if args.len() == 3 {
-            if args[2] == "-o" {
-                panic!("Please specify an output file!");
-            }
-        } else if args.len() == 4 {
-            if args[2] == "-o" {
-                output_file = args[3];
-            }
-        }
-        
         // If compiles without error, print out a success
         // message and the first 9 lines, with the last being
         // printed also if there are > 9 lines
@@ -616,23 +683,37 @@ fn main() {
             if index > 9 {
                 println!(".......");
                 let last = compiled_text.last().unwrap();
-                println!("{:4} | {:7} | {:15} ==>    {}", compiled_text.len() - 1, last.instruction_type.names[0], last.text_contents, last.binary_contents.join(" "));
+                println!(
+                    "{:4} | {:7} | {:15} ==>    {}",
+                    compiled_text.len() - 1,
+                    last.instruction_type.names[0],
+                    last.text_contents,
+                    last.binary_contents.join(" ")
+                );
                 break;
             }
-            println!("{:4} | {:7} | {:15} ==>    {}", index, line.instruction_type.names[0], line.text_contents, line.binary_contents.join(" "));
-            
+            println!(
+                "{:4} | {:7} | {:15} ==>    {}",
+                index,
+                line.instruction_type.names[0],
+                line.text_contents,
+                line.binary_contents.join(" ")
+            );
         }
 
         // Output file if given path
-        if output_file != "" {
+        if matches.value_of("output").is_some() {
+
+            let output_file = matches.value_of("output").unwrap();
+
             if output_file.ends_with(UNCOMPILED) {
+                write_uncompiled_hmmm(output_file, compiled_text);
 
             } else if output_file.ends_with(COMPILED) {
+                write_compiled_hmmm(output_file, compiled_text);
 
             } else {
                 println!("No output type specified, writing as binary...");
-                
-
             }
         }
     }
