@@ -30,7 +30,7 @@ lazy_static! {
             "r"
         ),
         InstructionType::new(
-            vec!["jumpr"],
+            vec!["jumpr", "jump"],
             "0000 0000 0000 0011",
             "1111 0000 1111 1111",
             "r"
@@ -90,7 +90,7 @@ lazy_static! {
             ""
         ),
         InstructionType::new(
-            vec!["copy"],
+            vec!["copy", "mov"],
             "0110 0000 0000 0000",
             "1111 0000 0000 1111",
             "rr"
@@ -138,31 +138,31 @@ lazy_static! {
             "zu"
         ),
         InstructionType::new(
-            vec!["calln"],
+            vec!["calln", "call"],
             "1011 0000 0000 0000",
             "1111 0000 0000 0000",
             "ru"
         ),
         InstructionType::new(
-            vec!["jeqzn"],
+            vec!["jeqzn", "jeqz"],
             "1100 0000 0000 0000",
             "1111 0000 0000 0000",
             "ru"
         ),
         InstructionType::new(
-            vec!["jnezn"],
+            vec!["jnezn", "jnez"],
             "1101 0000 0000 0000",
             "1111 0000 0000 0000",
             "ru"
         ),
         InstructionType::new(
-            vec!["jgtzn"],
+            vec!["jgtzn", "jgtz"],
             "1110 0000 0000 0000",
             "1111 0000 0000 0000",
             "ru"
         ),
         InstructionType::new(
-            vec!["jltzn"],
+            vec!["jltzn", "jltz"],
             "1111 0000 0000 0000",
             "1111 0000 0000 0000",
             "ru"
@@ -502,9 +502,17 @@ impl Instruction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RuntimeErr {
-
+    InvalidRegisterLocation,
+    MemoryLocationNotData,
+    InvalidMemoryData,
+    InvalidMemoryLocation,
+    InvalidData,
+    Halt,
+    InvalidProgramCounter,
+    InstructionIsData,
+    InvalidInstructionType,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -512,7 +520,7 @@ pub struct Simulator {
     pub memory: Vec<Instruction>,
     pub registers: Vec<i16>,
     pub program_counter: usize,
-    pub last_program_counter: usize,
+    pub counter_log: Vec<usize>
 }
 
 impl Simulator {
@@ -533,15 +541,307 @@ impl Simulator {
             memory: memory,
             registers: registers,
             program_counter: 0,
-            last_program_counter: 0,
+            counter_log: Vec::new(),
         }
     }
 
-    pub fn step() -> Result<(), RuntimeErr> {
-        
+    pub fn write_rg(&mut self, register: u8, data: i16) -> Result<(), RuntimeErr> {
+        if register > 15 {
+            return Err(RuntimeErr::InvalidRegisterLocation);
+        } else if register > 0 {
+            self.registers[register as usize] = data;
+        }
+
         Ok(())
     }
+
+    pub fn read_rg(&mut self, register: u8) -> Result<i16, RuntimeErr> {
+        if register == 0 {
+            return Ok(0 as i16);
+        } else if register > 15 {
+            return Err(RuntimeErr::InvalidRegisterLocation);
+        } else {
+            Ok(self.registers[register as usize])
+        }
+    }
+
+    pub fn write_mem(&mut self, memory: u8, data: i16) -> Result<(), RuntimeErr> {
+        let data_binary = split_binary_to_chunks(format!("0000{:016b}", data));
+        let data = Instruction::new_from_binary(data_binary.as_str());
+        if data.is_err() {
+            return Err(RuntimeErr::InvalidData);
+        } else {
+            self.memory[memory as usize] = data.unwrap();
+            Ok(())
+        }
+    }
+
+    pub fn read_mem(&mut self, memory: u8) -> Result<i16, RuntimeErr> {
+        let data = self.memory[memory as usize].clone();
+
+        if data.instruction_type.names[0] != "data" {
+            return Err(RuntimeErr::MemoryLocationNotData);
+        } else {
+            let binary = data.binary_contents[1..].join("");
+            let num = i16::from_str_radix(binary.as_str(), 2);
+
+            if num.is_err() {
+                return Err(RuntimeErr::InvalidMemoryData);
+            } else {
+                Ok(num.unwrap())
+            }
+        }
+    }
+
+    pub fn update_pc(&mut self, new_pc: usize) -> Result<(), RuntimeErr> {
+        if new_pc > 255 {
+            return Err(RuntimeErr::InvalidProgramCounter);
+        } else {
+            self.counter_log.push(self.program_counter);
+            self.program_counter = new_pc;
+            Ok(())
+        }
+    }
+
+    pub fn step(&mut self) -> Result<(), RuntimeErr> {
+        let pc = self.program_counter.clone();
+        let instruction_to_run = self.memory[pc].clone();
+        let instruction_name = instruction_to_run.instruction_type.names[0];
+
+        self.update_pc(pc + 1);
+
+        // All binary of length 4 can be coerced into u8, and having all three
+        // arguments available as instructions can be useful for instructions
+        let reg_x = u8::from_str_radix(instruction_to_run.binary_contents[1].as_str(), 2).unwrap();
+        let reg_y = u8::from_str_radix(instruction_to_run.binary_contents[2].as_str(), 2).unwrap();
+        let reg_z = u8::from_str_radix(instruction_to_run.binary_contents[3].as_str(), 2).unwrap();
+
+        // Also, the last two are used as data often, so we can get that as a number also
+        let ending_data_i8 =
+            i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2)
+                .unwrap();
+        let ending_data_u8 =
+            u8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2)
+                .unwrap();
+        // Same can be said for the data in regX
+        let reg_x_data = self.read_rg(reg_x);
+
+        if reg_x_data.is_err() {
+            return Err(reg_x_data.unwrap_err());
+        }
+
+        let reg_x_data = reg_x_data.unwrap();
+
+        if instruction_name == "data" {
+            return Err(RuntimeErr::InstructionIsData);
+        } else if instruction_name == "halt" {
+            return Err(RuntimeErr::Halt);
+        } else if instruction_name == "nop" {
+            return Ok(())
+        } else if instruction_name == "read" {
+            loop {
+                let mut line = String::new();
+                println!("Enter number:");
+                io::stdin().read_line(&mut line).unwrap();
+                line = line.trim().to_string();
+
+                if line == "q" {
+                    return Err(RuntimeErr::Halt);
+                }
+
+                let number = line.parse::<i16>();
+
+                if number.is_ok() {
+                    return self.write_rg(reg_x, number.unwrap());
+                }
+
+                println!("Invalid number! Please try again...");
+            }
+        } else if instruction_name == "write" {
+            println!("{}", reg_x_data);
+            return Ok(());
+        } else if instruction_name == "setn" {
+            return self.write_rg(reg_x, ending_data_i8 as i16);
+        } else if instruction_name == "loadr" {
+            let data = self.read_mem(reg_y);
+
+            if data.is_err() {
+                return Err(data.unwrap_err());
+            }
+
+            return self.write_rg(reg_x, data.unwrap());
+        } else if instruction_name == "storer" {
+            return self.write_mem(reg_y, reg_x_data);
+        } else if instruction_name == "popr" {
+            let reg_y_data = self.read_rg(reg_y);
+
+            if reg_y_data.is_err() {
+                return Err(reg_y_data.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data.unwrap();
+
+            if reg_y_data > 255 || reg_y_data < 0 {
+                return Err(RuntimeErr::InvalidMemoryLocation);
+            }
+
+            let change_reg = self.write_rg(reg_y, reg_y_data - 1);
+
+            if change_reg.is_err() {
+                return Err(change_reg.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data as u8;
+
+            let mem_data = self.read_mem(reg_y_data - 1);
+
+            if mem_data.is_err() {
+                return Err(mem_data.unwrap_err());
+            }
+
+            let mem_data = mem_data.unwrap();
+
+            return self.write_rg(reg_x, mem_data);
+        } else if instruction_name == "pushr" {
+            let reg_y_data = self.read_rg(reg_y);
+            if reg_y_data.is_err() {
+                return Err(reg_y_data.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data.unwrap();
+
+            if reg_y_data > 255 || reg_y_data < 0 {
+                return Err(RuntimeErr::InvalidMemoryData);
+            }
+
+            let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
+
+            return self.write_rg(reg_y, reg_y_data + 1);
+        } else if instruction_name == "loadn" {
+            let memory_data = self.read_mem(ending_data_u8);
+
+            if memory_data.is_err() {
+                return Err(memory_data.unwrap_err());
+            }
+
+            let memory_data = memory_data.unwrap();
+
+            return self.write_rg(reg_x, memory_data);
+        } else if instruction_name == "storen" {
+            return self.write_mem(ending_data_u8, reg_x_data);
+        } else if instruction_name == "addn" {
+            return self.write_rg(reg_x, reg_x_data + ending_data_i8 as i16);
+        } else if instruction_name == "copy" {
+            let reg_y_data = self.read_rg(reg_y);
+
+            if reg_y_data.is_err() {
+                return Err(reg_y_data.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data.unwrap();
+
+            return self.write_rg(reg_x, reg_y_data);
+        } else if instruction_name == "neg" {
+            let reg_y_data = self.read_rg(reg_y);
+
+            if reg_y_data.is_err() {
+                return Err(reg_y_data.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data.unwrap();
+
+            return self.write_rg(reg_x, -reg_y_data);
+        } else if vec!["add", "sub", "mul", "div", "mod"].contains(&instruction_name) {
+            let reg_z_data = self.read_rg(reg_z);
+
+            if reg_z_data.is_err() {
+                return Err(reg_z_data.unwrap_err());
+            }
+
+            let reg_z_data = reg_z_data.unwrap();
+
+            let reg_y_data = self.read_rg(reg_y);
+
+            if reg_y_data.is_err() {
+                return Err(reg_y_data.unwrap_err());
+            }
+
+            let reg_y_data = reg_y_data.unwrap();
+
+            let result: i16;
+
+            match instruction_name {
+                "add" => result = reg_y_data + reg_z_data,
+                "sub" => result = reg_y_data - reg_z_data,
+                "mul" => result = reg_y_data * reg_z_data,
+                "div" => result = reg_y_data / reg_z_data,
+                "mod" => result = reg_y_data % reg_z_data,
+                _ => result = 0,
+            }
+
+            return self.write_rg(reg_x, result);
+        } else if instruction_name == "jumpr" {
+            if reg_x_data < 0 {
+                return Err(RuntimeErr::InvalidProgramCounter);
+            }
+
+            return self.update_pc(reg_x_data as usize);
+        } else if instruction_name == "jumpn" {
+            return self.update_pc(ending_data_u8 as usize);
+        } else if instruction_name == "jeqzn" {
+            if reg_x_data == 0 {
+                return self.update_pc(ending_data_u8 as usize);
+            } else {
+                Ok(())
+            }
+        } else if instruction_name == "jnezn" {
+            if reg_x_data != 0 {
+                return self.update_pc(ending_data_u8 as usize);
+            } else {
+                Ok(())
+            }
+        } else if instruction_name == "jgtzn" {
+            if reg_x_data > 0 {
+                return self.update_pc(ending_data_u8 as usize);
+            } else {
+                Ok(())
+            }
+        } else if instruction_name == "jltzn" {
+            if reg_x_data < 0 {
+                return self.update_pc(ending_data_u8 as usize);
+            } else {
+                Ok(())
+            }
+        } else if instruction_name == "calln" {
+            let update_rg = self.write_rg(reg_x, (pc + 1) as i16);
+
+            if update_rg.is_err() {
+                return Err(update_rg.unwrap_err());
+            }
+
+            return self.update_pc(ending_data_u8 as usize);
+        } else {
+            // This should never happen. But just in case...
+            Err(RuntimeErr::InvalidInstructionType)
+        }
+    }
 }
+
+fn split_binary_to_chunks(text: String) -> String {
+    text.chars()
+        .enumerate()
+        .flat_map(|(i, c)| {
+            if i != 0 && i % 4 == 0 {
+                Some(' ')
+            } else {
+                None
+            }
+            .into_iter()
+            .chain(std::iter::once(c))
+        })
+        .collect::<String>()
+}
+
 fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     let reader = BufReader::new(File::open(path).expect("Cannot open file.txt"));
     let mut output_vec: Vec<String> = Vec::new();
@@ -569,6 +869,28 @@ fn raise_compile_error(
     println!("|| Line | Command | Arguments ");
     println!("|| {:4} | {:7} | {:15}", line_parts[0], line_parts[1], args);
     println!("===========================================");
+    println!("Exiting...");
+    exit(1);
+}
+
+fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
+    let last_run_line = sim.counter_log.last().unwrap().to_owned();
+    println!("==================================");
+    println!("==== SIMULATION  UNSUCCESSFUL ====");
+    println!("==================================");
+    println!("ERROR EXECUTING ADDRESS {}: {:?}", last_run_line, error);
+    println!("MEMORY ADDRESS CONTENTS: {} {}", sim.memory[last_run_line].instruction_type.names[0], sim.memory[last_run_line].text_contents);
+    println!("===============================================");
+    println!("||             REGISTER CONTENTS             ||");
+    println!("||    R0    |    R1    |    R2    |    R3    ||");
+    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[0], sim.registers[1], sim.registers[2], sim.registers[3]);
+    println!("||    R4    |    R5    |    R6    |    R7    ||");
+    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[4], sim.registers[5], sim.registers[6], sim.registers[7]);
+    println!("||    R8    |    R9    |    R10   |    R11   ||");
+    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[8], sim.registers[9], sim.registers[10], sim.registers[11]);
+    println!("||    R12   |    R13   |    R14   |    R15   ||");
+    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[12], sim.registers[13], sim.registers[14], sim.registers[15]);
+    println!("=============================================||");
     println!("Exiting...");
     exit(1);
 }
@@ -748,9 +1070,9 @@ fn main() {
             let output_file = matches.value_of("output").unwrap();
 
             if output_file.ends_with(UNCOMPILED) {
-                write_uncompiled_hmmm(output_file, compiled_text);
+                write_uncompiled_hmmm(output_file, compiled_text.clone());
             } else if output_file.ends_with(COMPILED) {
-                write_compiled_hmmm(output_file, compiled_text);
+                write_compiled_hmmm(output_file, compiled_text.clone());
             } else {
                 println!("No output type specified, writing as binary...");
             }
@@ -758,6 +1080,24 @@ fn main() {
 
         // Run simulation if --no-run flag is not present
 
-        if matches.value_of("no-run").is_none() {}
+        if matches.value_of("no-run").is_none() {
+            // Create it as new struct from compiled HMMM
+            let mut simulator = Simulator::new(compiled_text);
+
+            loop {
+                let result = &simulator.step();
+                
+                if result.is_err() {
+                    let result_err = result.as_ref().unwrap_err();
+                    
+                    if result_err == &RuntimeErr::Halt {
+                        println!("Program has reached end, exiting...");
+                        exit(0);
+                    } else {
+                        raise_runtime_error(&simulator, &result_err);
+                    }
+                }
+            }
+        }
     }
 }
