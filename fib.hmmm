@@ -1,0 +1,16 @@
+00 read r1
+01 setn r2 0
+02 setn r3 1
+03 setn r4 1
+04 jeqzn r1 12
+05 add r2 r2 r3
+06 sub r1 r1 r4
+07 jumpn 08
+08 jeqzn r1 14
+09 add r3 r2 r3
+10 sub r1 r1 r4
+11 jumpn 04
+12 write r2
+13 halt
+14 write r3
+15 halt

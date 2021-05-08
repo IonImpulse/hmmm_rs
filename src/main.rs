@@ -104,7 +104,7 @@ lazy_static! {
         InstructionType::new(
             vec!["neg"],
             "0111 0000 0000 0000",
-            "1111 0000 1111 0000",
+            "1111 0000 0000 0000",
             "rzr"
         ),
         InstructionType::new(
@@ -134,7 +134,7 @@ lazy_static! {
         InstructionType::new(
             vec!["jumpn"],
             "1011 0000 0000 0000",
-            "1111 1111 0000 0000",
+            "1111 0000 0000 0000",
             "zu"
         ),
         InstructionType::new(
@@ -270,7 +270,7 @@ impl Instruction {
         // Second, check to see if the number of arguments match
         if instruction_args.len() > instruction_type.arguments.len() {
             return Err(CompileErr::TooManyArguments);
-        } else if instruction_args.len() < instruction_type.arguments.len() {
+        } else if instruction_args.len() < instruction_type.arguments.replace("z", "").len() {
             return Err(CompileErr::TooFewArguments);
         } else if instruction_type.arguments.len() == 0 {
             // If it's a single command, just return it
@@ -317,12 +317,11 @@ impl Instruction {
             .collect();
 
         // Third, check if instructions match the source instruction types
-        for (index, arg) in instruction_args.iter().enumerate() {
-            let current_instruction_type = instruction_chars.next().unwrap();
-
+        let mut arg_to_get = 0;
+        for (index, current_instruction_type) in instruction_chars.into_iter().enumerate() {
+            let arg = instruction_args[arg_to_get];
             let slot_to_fill = filled_slots.iter().position(|a| *a == false).unwrap();
             let mut binary_string = String::from("");
-
             filled_slots[slot_to_fill] = true;
 
             if current_instruction_type == 'r' {
@@ -347,7 +346,6 @@ impl Instruction {
                 binary_string = format!("{:08b}", number.unwrap());
             } else if current_instruction_type == 'u' {
                 let number = arg.parse::<u8>();
-
                 if number.is_err() {
                     return Err(CompileErr::InvalidUnsignedNumber);
                 }
@@ -366,7 +364,11 @@ impl Instruction {
                 }
             } else if current_instruction_type == 'z' {
                 binary_string = "0000".to_string();
+                arg_to_get -= 1;
             }
+
+            arg_to_get += 1;
+
             if binary_string.len() == 4 {
                 binary_contents[slot_to_fill] = binary_string;
             } else if binary_string.len() == 8 {
@@ -467,6 +469,7 @@ impl Instruction {
                     binary_contents[slots_filled],
                     binary_contents[slots_filled + 1]
                 );
+                println!("{}", combined_binary);
                 instruction_args.push(format!(
                     "{}",
                     u8::from_str_radix(combined_binary.as_str(), 2).unwrap()
@@ -520,7 +523,7 @@ pub struct Simulator {
     pub memory: Vec<Instruction>,
     pub registers: Vec<i16>,
     pub program_counter: usize,
-    pub counter_log: Vec<usize>
+    pub counter_log: Vec<usize>,
 }
 
 impl Simulator {
@@ -637,7 +640,7 @@ impl Simulator {
         } else if instruction_name == "halt" {
             return Err(RuntimeErr::Halt);
         } else if instruction_name == "nop" {
-            return Ok(())
+            return Ok(());
         } else if instruction_name == "read" {
             loop {
                 let mut line = String::new();
@@ -879,17 +882,33 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     println!("==== SIMULATION  UNSUCCESSFUL ====");
     println!("==================================");
     println!("ERROR EXECUTING ADDRESS {}: {:?}", last_run_line, error);
-    println!("MEMORY ADDRESS CONTENTS: {} {}", sim.memory[last_run_line].instruction_type.names[0], sim.memory[last_run_line].text_contents);
+    println!(
+        "MEMORY ADDRESS CONTENTS: {} {}",
+        sim.memory[last_run_line].instruction_type.names[0],
+        sim.memory[last_run_line].text_contents
+    );
     println!("===============================================");
     println!("||             REGISTER CONTENTS             ||");
     println!("||    R0    |    R1    |    R2    |    R3    ||");
-    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[0], sim.registers[1], sim.registers[2], sim.registers[3]);
+    println!(
+        "||{:10}|{:10}|{:10}|{:10}||",
+        sim.registers[0], sim.registers[1], sim.registers[2], sim.registers[3]
+    );
     println!("||    R4    |    R5    |    R6    |    R7    ||");
-    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[4], sim.registers[5], sim.registers[6], sim.registers[7]);
+    println!(
+        "||{:10}|{:10}|{:10}|{:10}||",
+        sim.registers[4], sim.registers[5], sim.registers[6], sim.registers[7]
+    );
     println!("||    R8    |    R9    |    R10   |    R11   ||");
-    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[8], sim.registers[9], sim.registers[10], sim.registers[11]);
+    println!(
+        "||{:10}|{:10}|{:10}|{:10}||",
+        sim.registers[8], sim.registers[9], sim.registers[10], sim.registers[11]
+    );
     println!("||    R12   |    R13   |    R14   |    R15   ||");
-    println!("||{:10}|{:10}|{:10}|{:10}||", sim.registers[12], sim.registers[13], sim.registers[14], sim.registers[15]);
+    println!(
+        "||{:10}|{:10}|{:10}|{:10}||",
+        sim.registers[12], sim.registers[13], sim.registers[14], sim.registers[15]
+    );
     println!("=============================================||");
     println!("Exiting...");
     exit(1);
@@ -1086,10 +1105,8 @@ fn main() {
 
             loop {
                 let result = &simulator.step();
-                
                 if result.is_err() {
                     let result_err = result.as_ref().unwrap_err();
-                    
                     if result_err == &RuntimeErr::Halt {
                         println!("Program has reached end, exiting...");
                         exit(0);
