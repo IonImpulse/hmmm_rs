@@ -104,7 +104,7 @@ lazy_static! {
         InstructionType::new(
             vec!["neg"],
             "0111 0000 0000 0000",
-            "1111 0000 0000 0000",
+            "1111 0000 1111 0000",
             "rzr"
         ),
         InstructionType::new(
@@ -134,7 +134,7 @@ lazy_static! {
         InstructionType::new(
             vec!["jumpn"],
             "1011 0000 0000 0000",
-            "1111 0000 0000 0000",
+            "1111 1111 0000 0000",
             "zu"
         ),
         InstructionType::new(
@@ -365,6 +365,7 @@ impl Instruction {
             } else if current_instruction_type == 'z' {
                 binary_string = "0000".to_string();
                 arg_to_get -= 1;
+                filled_slots[slot_to_fill] = false;
             }
 
             arg_to_get += 1;
@@ -469,7 +470,6 @@ impl Instruction {
                     binary_contents[slots_filled],
                     binary_contents[slots_filled + 1]
                 );
-                println!("{}", combined_binary);
                 instruction_args.push(format!(
                     "{}",
                     u8::from_str_radix(combined_binary.as_str(), 2).unwrap()
