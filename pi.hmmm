@@ -1,0 +1,4 @@
+0 read r1 # get number of iterations
+1 setn r2 3 # set pi
+2 setn r3 3 # set a
+3 setn r4 0 # set even as false

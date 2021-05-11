@@ -5,6 +5,7 @@ use std::process::*;
 
 use lazy_static::lazy_static;
 use std::*;
+use terminal::*;
 
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
@@ -516,6 +517,7 @@ pub enum RuntimeErr {
     InvalidProgramCounter,
     InstructionIsData,
     InvalidInstructionType,
+    DivideByZero,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -597,7 +599,9 @@ impl Simulator {
     }
 
     pub fn update_pc(&mut self, new_pc: usize) -> Result<(), RuntimeErr> {
-        if new_pc > 255 {
+        // Errors on 256 not 255 due to update_pc being called at the start
+        // of the step() function
+        if new_pc > 256 {
             return Err(RuntimeErr::InvalidProgramCounter);
         } else {
             self.counter_log.push(self.program_counter);
@@ -606,23 +610,33 @@ impl Simulator {
         }
     }
 
+    /// Massive single function to step though a line of instructions
+    ///
+    /// Modifies self in order to change the state of memory and registers
+    ///
+    /// Returns a result of either Ok or a RuntimeErr
     pub fn step(&mut self) -> Result<(), RuntimeErr> {
+        // Clone the current program counter for use in instructions
         let pc = self.program_counter.clone();
+        // Clone the current instruction from memory
         let instruction_to_run = self.memory[pc].clone();
+        // Get the name of the instruction for quick reference
         let instruction_name = instruction_to_run.instruction_type.names[0];
 
-        self.update_pc(pc + 1);
+        // Update the program counter
+        let update_pc = self.update_pc(pc + 1);
+        // Will error if the program counter is invalid
+        if update_pc.is_err() {
+            return Err(update_pc.unwrap_err());
+        }
 
         // All binary of length 4 can be coerced into u8, and having all three
-        // arguments available as instructions can be useful for instructions
+        // arguments available as numbers can be useful for instructions
         let reg_x = u8::from_str_radix(instruction_to_run.binary_contents[1].as_str(), 2).unwrap();
         let reg_y = u8::from_str_radix(instruction_to_run.binary_contents[2].as_str(), 2).unwrap();
         let reg_z = u8::from_str_radix(instruction_to_run.binary_contents[3].as_str(), 2).unwrap();
 
-        // Also, the last two are used as data often, so we can get that as a number also
-        let ending_data_i8 =
-            i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2)
-                .unwrap();
+        // The last two binary sections are used as data often, so we can get that as a number
         let ending_data_u8 =
             u8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2)
                 .unwrap();
@@ -636,10 +650,13 @@ impl Simulator {
         let reg_x_data = reg_x_data.unwrap();
 
         if instruction_name == "data" {
+            // You cannot execute data
             return Err(RuntimeErr::InstructionIsData);
         } else if instruction_name == "halt" {
+            // Exit if halting
             return Err(RuntimeErr::Halt);
         } else if instruction_name == "nop" {
+            // Do nothing, and just return an Ok
             return Ok(());
         } else if instruction_name == "read" {
             loop {
@@ -664,7 +681,14 @@ impl Simulator {
             println!("{}", reg_x_data);
             return Ok(());
         } else if instruction_name == "setn" {
-            return self.write_rg(reg_x, ending_data_i8 as i16);
+            let ending_data_i8 =
+                i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2);
+
+            if ending_data_i8.is_err() {
+                return Err(RuntimeErr::InvalidData);
+            }
+
+            return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
         } else if instruction_name == "loadr" {
             let data = self.read_mem(reg_y);
 
@@ -733,7 +757,13 @@ impl Simulator {
         } else if instruction_name == "storen" {
             return self.write_mem(ending_data_u8, reg_x_data);
         } else if instruction_name == "addn" {
-            return self.write_rg(reg_x, reg_x_data + ending_data_i8 as i16);
+            let ending_data_i8 =
+                i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2);
+
+            if ending_data_i8.is_err() {
+                return Err(RuntimeErr::InvalidData);
+            }
+            return self.write_rg(reg_x, reg_x_data + ending_data_i8.unwrap() as i16);
         } else if instruction_name == "copy" {
             let reg_y_data = self.read_rg(reg_y);
 
@@ -773,6 +803,9 @@ impl Simulator {
 
             let result: i16;
 
+            if reg_z_data == 0 && instruction_name == "div" {
+                return Err(RuntimeErr::DivideByZero);
+            }
             match instruction_name {
                 "add" => result = reg_y_data + reg_z_data,
                 "sub" => result = reg_y_data - reg_z_data,
@@ -826,6 +859,8 @@ impl Simulator {
         } else {
             // This should never happen. But just in case...
             Err(RuntimeErr::InvalidInstructionType)
+            // Like, there is no way this should ever happen
+            // unless you modify the code. Just sayin'
         }
     }
 }
@@ -845,8 +880,9 @@ fn split_binary_to_chunks(text: String) -> String {
         .collect::<String>()
 }
 
-fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
-    let reader = BufReader::new(File::open(path).expect("Cannot open file.txt"));
+/// Funcition to load any text file as a Vec of Strings
+fn load_file(path: &str) -> std::io::Result<Vec<String>> {
+    let reader = BufReader::new(File::open(path).expect("Cannot open file.hmmm"));
     let mut output_vec: Vec<String> = Vec::new();
     for line in reader.lines() {
         output_vec.push(line?);
@@ -855,6 +891,8 @@ fn load_hmmm_file(path: &str) -> std::io::Result<Vec<String>> {
     Ok(output_vec)
 }
 
+/// Function to pretty-print a compilation error and exit
+/// the program gracefully
 fn raise_compile_error(
     line_num: usize,
     error: CompileErr,
@@ -862,58 +900,59 @@ fn raise_compile_error(
     line_parts: Vec<String>,
 ) {
     let args: String = line_parts[2..].join(" ");
-    println!("==================================");
-    println!("==== COMPILATION UNSUCCESSFUL ====");
-    println!("==================================\n");
-    println!("ERROR ON LINE {}: {:?}", line_num, error);
-    println!("Raw: \"{}\"", raw_line);
-    println!("===========================================");
-    println!("||           Interpreted As: ");
-    println!("|| Line | Command | Arguments ");
-    println!("|| {:4} | {:7} | {:15}", line_parts[0], line_parts[1], args);
-    println!("===========================================");
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("████    COMPILATION UNSUCCESSFUL    ████");
+    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    println!("\nERROR ON LINE {}: {:?}", line_num, error);
+    println!("Raw: \"{}\"\n", raw_line);
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("█           Interpreted As: ");
+    println!("█ Line █ Command █ Arguments ");
+    println!("█ {:4} █ {:7} █ {:15}", line_parts[0], line_parts[1], args);
+    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
     println!("Exiting...");
     exit(1);
 }
 
+/// Function to pretty-print a runtime error and exit
+/// the program gracefully
 fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     let last_run_line = sim.counter_log.last().unwrap().to_owned();
-    println!("==================================");
-    println!("==== SIMULATION  UNSUCCESSFUL ====");
-    println!("==================================");
-    println!("ERROR EXECUTING ADDRESS {}: {:?}", last_run_line, error);
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("████    SIMULATION  UNSUCCESSFUL    ████");
+    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    println!("\nERROR EXECUTING ADDRESS {}: {:?}", last_run_line, error);
     println!(
-        "MEMORY ADDRESS CONTENTS: {} {}",
+        "MEMORY ADDRESS CONTENTS: {} {}\n",
         sim.memory[last_run_line].instruction_type.names[0],
         sim.memory[last_run_line].text_contents
     );
-    println!("===============================================");
-    println!("||             REGISTER CONTENTS             ||");
-    println!("||    R0    |    R1    |    R2    |    R3    ||");
-    println!(
-        "||{:10}|{:10}|{:10}|{:10}||",
-        sim.registers[0], sim.registers[1], sim.registers[2], sim.registers[3]
-    );
-    println!("||    R4    |    R5    |    R6    |    R7    ||");
-    println!(
-        "||{:10}|{:10}|{:10}|{:10}||",
-        sim.registers[4], sim.registers[5], sim.registers[6], sim.registers[7]
-    );
-    println!("||    R8    |    R9    |    R10   |    R11   ||");
-    println!(
-        "||{:10}|{:10}|{:10}|{:10}||",
-        sim.registers[8], sim.registers[9], sim.registers[10], sim.registers[11]
-    );
-    println!("||    R12   |    R13   |    R14   |    R15   ||");
-    println!(
-        "||{:10}|{:10}|{:10}|{:10}||",
-        sim.registers[12], sim.registers[13], sim.registers[14], sim.registers[15]
-    );
-    println!("=============================================||");
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("█             REGISTER CONTENTS             █");
+
+    for row in 0..4 {
+        println!(
+            "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █",
+            row * 4,
+            (row * 4) + 1,
+            (row * 4) + 2,
+            (row * 4) + 3
+        );
+        println!(
+            "█ {:8} █ {:8} █ {:8} █ {:8} █",
+            sim.registers[row * 4],
+            sim.registers[(row * 4) + 1],
+            sim.registers[(row * 4) + 2],
+            sim.registers[(row * 4) + 3]
+        );
+    }
+    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
     println!("Exiting...");
     exit(1);
 }
 
+/// Function to compile a vec of HMMM instructions into
+/// a Vec of Instruction structs
 fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
     let mut line_counter = 0;
     let mut compiled_text: Vec<Instruction> = Vec::new();
@@ -958,6 +997,8 @@ fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
     compiled_text
 }
 
+/// Function to read a vec of binary HMMM text into
+/// a Vec of Instruction structs
 fn read_compiled_hmmm(raw_binary: Vec<String>) -> Vec<Instruction> {
     let mut compiled_text: Vec<Instruction> = Vec::new();
 
@@ -974,6 +1015,8 @@ fn read_compiled_hmmm(raw_binary: Vec<String>) -> Vec<Instruction> {
     compiled_text
 }
 
+/// Simple function to write a program as uncompiled HMMM code
+/// Useful for "decompiling" a compiled program
 fn write_uncompiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io::Result<()> {
     let mut contents = String::from("");
 
@@ -990,6 +1033,7 @@ fn write_uncompiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io
     Ok(())
 }
 
+/// Function to write a program as a compiled .hb binary
 fn write_compiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io::Result<()> {
     let mut contents = String::from("");
 
@@ -1004,9 +1048,13 @@ fn write_compiled_hmmm(path: &str, compiled_text: Vec<Instruction>) -> std::io::
     Ok(())
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
+fn main() -> terminal::error::Result<()> {
+    // Create the terminal object just to have an easy way
+    // to clear it
+    let terminal = terminal::stdout();
+    terminal.act(Action::ClearTerminal(Clear::All))?;
 
+    // Setup command line matches
     let matches = App::new("HMMM Compiler")
         .version("1.0")
         .author("Ethan Vazquez <edv121@outlook.com>")
@@ -1039,16 +1087,21 @@ fn main() {
     } else {
         let file_path: &str = matches.value_of("input").unwrap();
 
-        let mut uncompiled_text: Vec<String> = Vec::new();
+        // Setup the vec for the compiled Instructions
         let mut compiled_text: Vec<Instruction> = Vec::new();
 
+        // Check to see what type of file is being loaded
         if file_path.ends_with(UNCOMPILED) {
-            uncompiled_text = load_hmmm_file(file_path).unwrap();
+            // If it's uncompiled, load it
+            let uncompiled_text = load_file(file_path).unwrap();
 
+            // Then, compile it into Instruction structs
             compiled_text = compile_hmmm(uncompiled_text);
         } else if file_path.ends_with(COMPILED) {
-            let raw_binary = load_hmmm_file(file_path).unwrap();
+            // If it's already compiled, load it
+            let raw_binary = load_file(file_path).unwrap();
 
+            // Then, interpret it into Instruction structs
             compiled_text = read_compiled_hmmm(raw_binary);
         } else {
             panic!("Unknown filetype!");
@@ -1057,17 +1110,21 @@ fn main() {
         // If compiles without error, print out a success
         // message and the first 9 lines, with the last being
         // printed also if there are > 9 lines
-        println!("==================================");
-        println!("====  COMPILATION SUCCESSFUL  ====");
-        println!("==================================");
-        println!("Line | Command | Arguments");
+        println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+        println!("████     COMPILATION SUCCESSFUL     ████");
+        println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+        println!("\n");
+        println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+        println!("█ Line █ Command █ Arguments           █");
+        println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
 
         for (index, line) in compiled_text.iter().enumerate() {
             if index > 9 {
-                println!(".......");
+                // Print seperator to show the jump in line number
+                println!("........................................");
                 let last = compiled_text.last().unwrap();
                 println!(
-                    "{:4} | {:7} | {:15} ==>    {}",
+                    "█ {:4} █ {:7} █ {:19} █  >>    {}",
                     compiled_text.len() - 1,
                     last.instruction_type.names[0],
                     last.text_contents,
@@ -1076,7 +1133,7 @@ fn main() {
                 break;
             }
             println!(
-                "{:4} | {:7} | {:15} ==>    {}",
+                "█ {:4} █ {:7} █ {:19} █  >>    {}",
                 index,
                 line.instruction_type.names[0],
                 line.text_contents,
@@ -1084,37 +1141,61 @@ fn main() {
             );
         }
 
+        println!("█▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█\n\n");
+
         // Output file if given path
         if matches.value_of("output").is_some() {
             let output_file = matches.value_of("output").unwrap();
+            let result;
 
             if output_file.ends_with(UNCOMPILED) {
-                write_uncompiled_hmmm(output_file, compiled_text.clone());
+                result = write_uncompiled_hmmm(output_file, compiled_text.clone());
             } else if output_file.ends_with(COMPILED) {
-                write_compiled_hmmm(output_file, compiled_text.clone());
+                result = write_compiled_hmmm(output_file, compiled_text.clone());
             } else {
                 println!("No output type specified, writing as binary...");
+                // If no ending, just tack on a .hb extension and write out as binary
+                result = write_compiled_hmmm(
+                    format!("{}.hb", output_file).as_str(),
+                    compiled_text.clone(),
+                );
+            }
+
+            if result.is_err() {
+                println!("Error writing output file! Continuing...");
             }
         }
 
         // Run simulation if --no-run flag is not present
-
         if matches.value_of("no-run").is_none() {
             // Create it as new struct from compiled HMMM
             let mut simulator = Simulator::new(compiled_text);
 
-            loop {
-                let result = &simulator.step();
-                if result.is_err() {
-                    let result_err = result.as_ref().unwrap_err();
-                    if result_err == &RuntimeErr::Halt {
-                        println!("Program has reached end, exiting...");
-                        exit(0);
-                    } else {
-                        raise_runtime_error(&simulator, &result_err);
+            // If not in debug mode, just run in a loop
+            if matches.value_of("debug").is_none() {
+                loop {
+                    // Attempt to run a step in the simulator
+                    let result = &simulator.step();
+                    // If it's an error, raise it
+                    if result.is_err() {
+                        let result_err = result.as_ref().unwrap_err();
+                        // If the error is Halt, exit quietly, as that is the
+                        // program successfully finishing
+                        if result_err == &RuntimeErr::Halt {
+                            println!("Program has reached end, exiting...");
+                            exit(0);
+                        } else {
+                            // If not, raise that error!
+                            raise_runtime_error(&simulator, &result_err);
+                        }
                     }
                 }
             }
+            // If in debug mode, start debug mode
+            else {
+            }
         }
+
+        Ok(())
     }
 }
