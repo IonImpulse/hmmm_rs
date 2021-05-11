@@ -297,7 +297,7 @@ impl Instruction {
             }
         }
 
-        let mut instruction_chars = instruction_type.arguments.chars();
+        let instruction_chars = instruction_type.arguments.chars();
 
         let mut binary_contents: Vec<String> = instruction_type
             .match_string
@@ -319,7 +319,7 @@ impl Instruction {
 
         // Third, check if instructions match the source instruction types
         let mut arg_to_get = 0;
-        for (index, current_instruction_type) in instruction_chars.into_iter().enumerate() {
+        for current_instruction_type in instruction_chars {
             let arg = instruction_args[arg_to_get];
             let slot_to_fill = filled_slots.iter().position(|a| *a == false).unwrap();
             let mut binary_string = String::from("");
@@ -404,13 +404,13 @@ impl Instruction {
         for instruction in INSTRUCTION_LOOKUP.clone().into_iter() {
             let mut matches_instruction: bool = true;
 
-            let mut matcher: Vec<String> = instruction
+            let matcher: Vec<String> = instruction
                 .match_string
                 .split(" ")
                 .map(|a| String::from(a))
                 .collect();
 
-            let mut mask: Vec<bool> = instruction
+            let mask: Vec<bool> = instruction
                 .mask_string
                 .split(" ")
                 .map(|a| {
@@ -742,6 +742,10 @@ impl Simulator {
             }
 
             let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
+
+            if mem_write.is_err() {
+                return Err(mem_write.unwrap_err())
+            }
 
             return self.write_rg(reg_y, reg_y_data + 1);
         } else if instruction_name == "loadn" {
@@ -1088,7 +1092,7 @@ fn main() -> terminal::error::Result<()> {
         let file_path: &str = matches.value_of("input").unwrap();
 
         // Setup the vec for the compiled Instructions
-        let mut compiled_text: Vec<Instruction> = Vec::new();
+        let compiled_text: Vec<Instruction>;
 
         // Check to see what type of file is being loaded
         if file_path.ends_with(UNCOMPILED) {
