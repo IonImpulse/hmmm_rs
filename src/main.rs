@@ -599,9 +599,7 @@ impl Simulator {
     }
 
     pub fn update_pc(&mut self, new_pc: usize) -> Result<(), RuntimeErr> {
-        // Errors on 256 not 255 due to update_pc being called at the start
-        // of the step() function
-        if new_pc > 256 {
+        if new_pc > 255 {
             return Err(RuntimeErr::InvalidProgramCounter);
         } else {
             self.counter_log.push(self.program_counter);
@@ -610,25 +608,36 @@ impl Simulator {
         }
     }
 
+    /// Function to both execute instruction on program counter
+    /// and increment program counter
+    pub fn step(&mut self) -> Result<(), RuntimeErr> {
+        let execution_result = self.execute_next();
+
+        if execution_result.is_err() {
+            return Err(execution_result.unwrap_err())
+        }
+
+        let update_program_counter = self.update_pc(self.program_counter + 1);
+
+        if update_program_counter.is_err() {
+            return Err(update_program_counter.unwrap_err())
+        }
+
+        Ok(())
+    }
+
     /// Massive single function to step though a line of instructions
     ///
     /// Modifies self in order to change the state of memory and registers
     ///
     /// Returns a result of either Ok or a RuntimeErr
-    pub fn step(&mut self) -> Result<(), RuntimeErr> {
+    pub fn execute_next(&mut self) -> Result<(), RuntimeErr> {
         // Clone the current program counter for use in instructions
         let pc = self.program_counter.clone();
         // Clone the current instruction from memory
         let instruction_to_run = self.memory[pc].clone();
         // Get the name of the instruction for quick reference
         let instruction_name = instruction_to_run.instruction_type.names[0];
-
-        // Update the program counter
-        let update_pc = self.update_pc(pc + 1);
-        // Will error if the program counter is invalid
-        if update_pc.is_err() {
-            return Err(update_pc.unwrap_err());
-        }
 
         // All binary of length 4 can be coerced into u8, and having all three
         // arguments available as numbers can be useful for instructions
@@ -744,7 +753,7 @@ impl Simulator {
             let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
 
             if mem_write.is_err() {
-                return Err(mem_write.unwrap_err())
+                return Err(mem_write.unwrap_err());
             }
 
             return self.write_rg(reg_y, reg_y_data + 1);
@@ -953,6 +962,10 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
     println!("Exiting...");
     exit(1);
+}
+
+fn print_debug_screen(sim: &Simulator) {
+
 }
 
 /// Function to compile a vec of HMMM instructions into
@@ -1197,6 +1210,7 @@ fn main() -> terminal::error::Result<()> {
             }
             // If in debug mode, start debug mode
             else {
+                print_debug_screen(&simulator);
             }
         }
 
