@@ -526,6 +526,7 @@ pub struct Simulator {
     pub registers: Vec<i16>,
     pub program_counter: usize,
     pub counter_log: Vec<usize>,
+    pub just_updated_pc: bool,
 }
 
 impl Simulator {
@@ -547,6 +548,7 @@ impl Simulator {
             registers: registers,
             program_counter: 0,
             counter_log: Vec::new(),
+            just_updated_pc: false,
         }
     }
 
@@ -598,6 +600,9 @@ impl Simulator {
         }
     }
 
+    /// Updates the program counter, which points to a "memory address"
+    /// between 0 and 255.
+    /// Logs each change for debugging purposes.
     pub fn update_pc(&mut self, new_pc: usize) -> Result<(), RuntimeErr> {
         if new_pc > 255 {
             return Err(RuntimeErr::InvalidProgramCounter);
@@ -611,16 +616,23 @@ impl Simulator {
     /// Function to both execute instruction on program counter
     /// and increment program counter
     pub fn step(&mut self) -> Result<(), RuntimeErr> {
+        // Run memory at program counter
         let execution_result = self.execute_next();
 
+        // If the execution resulted in an error, return it
         if execution_result.is_err() {
-            return Err(execution_result.unwrap_err())
+            return Err(execution_result.unwrap_err());
         }
 
-        let update_program_counter = self.update_pc(self.program_counter + 1);
+        // Otherwise, increase the program counter by one if instruction
+        // didn't already do thats
+        if self.just_updated_pc == false {
+            let update_program_counter = self.update_pc(self.program_counter + 1);
 
-        if update_program_counter.is_err() {
-            return Err(update_program_counter.unwrap_err())
+            // If there's an error (went past the final memory address), return it
+            if update_program_counter.is_err() {
+                return Err(update_program_counter.unwrap_err());
+            }
         }
 
         Ok(())
@@ -658,17 +670,11 @@ impl Simulator {
 
         let reg_x_data = reg_x_data.unwrap();
 
-        if instruction_name == "data" {
-            // You cannot execute data
-            return Err(RuntimeErr::InstructionIsData);
-        } else if instruction_name == "halt" {
-            // Exit if halting
-            return Err(RuntimeErr::Halt);
-        } else if instruction_name == "nop" {
-            // Do nothing, and just return an Ok
-            return Ok(());
-        } else if instruction_name == "read" {
-            loop {
+        let result: Result<(), RuntimeErr> = match instruction_name {
+            "data" => Err(RuntimeErr::InstructionIsData),
+            "halt" => Err(RuntimeErr::Halt),
+            "nop" => Ok(()),
+            "read" => loop {
                 let mut line = String::new();
                 println!("Enter number:");
                 io::stdin().read_line(&mut line).unwrap();
@@ -685,196 +691,223 @@ impl Simulator {
                 }
 
                 println!("Invalid number! Please try again...");
-            }
-        } else if instruction_name == "write" {
-            println!("{}", reg_x_data);
-            return Ok(());
-        } else if instruction_name == "setn" {
-            let ending_data_i8 =
-                i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2);
+            },
+            "write" => {
+                println!("{}", reg_x_data);
+                return Ok(());
+            },
+            "setn" => {
+                let ending_data_i8 = i8::from_str_radix(
+                    instruction_to_run.binary_contents[2..].join("").as_str(),
+                    2,
+                );
 
-            if ending_data_i8.is_err() {
-                return Err(RuntimeErr::InvalidData);
-            }
+                if ending_data_i8.is_err() {
+                    return Err(RuntimeErr::InvalidData);
+                }
 
-            return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
-        } else if instruction_name == "loadr" {
-            let data = self.read_mem(reg_y);
+                return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
+            },
+            "loadr" => {
+                let data = self.read_mem(reg_y);
 
-            if data.is_err() {
-                return Err(data.unwrap_err());
-            }
+                if data.is_err() {
+                    return Err(data.unwrap_err());
+                }
 
-            return self.write_rg(reg_x, data.unwrap());
-        } else if instruction_name == "storer" {
-            return self.write_mem(reg_y, reg_x_data);
-        } else if instruction_name == "popr" {
-            let reg_y_data = self.read_rg(reg_y);
+                return self.write_rg(reg_x, data.unwrap());
+            },
+            "storer" => {
+                return self.write_mem(reg_y, reg_x_data);
+            },
+            "popr" => {
+                let reg_y_data = self.read_rg(reg_y);
 
-            if reg_y_data.is_err() {
-                return Err(reg_y_data.unwrap_err());
-            }
+                if reg_y_data.is_err() {
+                    return Err(reg_y_data.unwrap_err());
+                }
 
-            let reg_y_data = reg_y_data.unwrap();
+                let reg_y_data = reg_y_data.unwrap();
 
-            if reg_y_data > 255 || reg_y_data < 0 {
-                return Err(RuntimeErr::InvalidMemoryLocation);
-            }
+                if reg_y_data > 255 || reg_y_data < 0 {
+                    return Err(RuntimeErr::InvalidMemoryLocation);
+                }
 
-            let change_reg = self.write_rg(reg_y, reg_y_data - 1);
+                let change_reg = self.write_rg(reg_y, reg_y_data - 1);
 
-            if change_reg.is_err() {
-                return Err(change_reg.unwrap_err());
-            }
+                if change_reg.is_err() {
+                    return Err(change_reg.unwrap_err());
+                }
 
-            let reg_y_data = reg_y_data as u8;
+                let reg_y_data = reg_y_data as u8;
 
-            let mem_data = self.read_mem(reg_y_data - 1);
+                let mem_data = self.read_mem(reg_y_data - 1);
 
-            if mem_data.is_err() {
-                return Err(mem_data.unwrap_err());
-            }
+                if mem_data.is_err() {
+                    return Err(mem_data.unwrap_err());
+                }
 
-            let mem_data = mem_data.unwrap();
+                let mem_data = mem_data.unwrap();
 
-            return self.write_rg(reg_x, mem_data);
-        } else if instruction_name == "pushr" {
-            let reg_y_data = self.read_rg(reg_y);
-            if reg_y_data.is_err() {
-                return Err(reg_y_data.unwrap_err());
-            }
+                return self.write_rg(reg_x, mem_data);
+            },
+            "pushr" => {
+                let reg_y_data = self.read_rg(reg_y);
+                if reg_y_data.is_err() {
+                    return Err(reg_y_data.unwrap_err());
+                }
 
-            let reg_y_data = reg_y_data.unwrap();
+                let reg_y_data = reg_y_data.unwrap();
 
-            if reg_y_data > 255 || reg_y_data < 0 {
-                return Err(RuntimeErr::InvalidMemoryData);
-            }
+                if reg_y_data > 255 || reg_y_data < 0 {
+                    return Err(RuntimeErr::InvalidMemoryData);
+                }
 
-            let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
+                let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
 
-            if mem_write.is_err() {
-                return Err(mem_write.unwrap_err());
-            }
+                if mem_write.is_err() {
+                    return Err(mem_write.unwrap_err());
+                }
 
-            return self.write_rg(reg_y, reg_y_data + 1);
-        } else if instruction_name == "loadn" {
-            let memory_data = self.read_mem(ending_data_u8);
+                return self.write_rg(reg_y, reg_y_data + 1);
+            },
+            "loadn" => {
+                let memory_data = self.read_mem(ending_data_u8);
 
-            if memory_data.is_err() {
-                return Err(memory_data.unwrap_err());
-            }
+                if memory_data.is_err() {
+                    return Err(memory_data.unwrap_err());
+                }
+                let memory_data = memory_data.unwrap();
+                return self.write_rg(reg_x, memory_data);
+            },
+            "storen" => {
+                return self.write_mem(ending_data_u8, reg_x_data);
+            },
+            "addn" => {
+                let ending_data_i8 = i8::from_str_radix(
+                    instruction_to_run.binary_contents[2..].join("").as_str(),
+                    2,
+                );
 
-            let memory_data = memory_data.unwrap();
+                if ending_data_i8.is_err() {
+                    return Err(RuntimeErr::InvalidData);
+                }
+                return self.write_rg(reg_x, reg_x_data + ending_data_i8.unwrap() as i16);
+            },
+            "copy" => {
+                let reg_y_data = self.read_rg(reg_y);
 
-            return self.write_rg(reg_x, memory_data);
-        } else if instruction_name == "storen" {
-            return self.write_mem(ending_data_u8, reg_x_data);
-        } else if instruction_name == "addn" {
-            let ending_data_i8 =
-                i8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2);
+                if reg_y_data.is_err() {
+                    return Err(reg_y_data.unwrap_err());
+                }
 
-            if ending_data_i8.is_err() {
-                return Err(RuntimeErr::InvalidData);
-            }
-            return self.write_rg(reg_x, reg_x_data + ending_data_i8.unwrap() as i16);
-        } else if instruction_name == "copy" {
-            let reg_y_data = self.read_rg(reg_y);
+                let reg_y_data = reg_y_data.unwrap();
 
-            if reg_y_data.is_err() {
-                return Err(reg_y_data.unwrap_err());
-            }
+                return self.write_rg(reg_x, reg_y_data);
+            },
+            "neg" => {
+                let reg_y_data = self.read_rg(reg_y);
 
-            let reg_y_data = reg_y_data.unwrap();
+                if reg_y_data.is_err() {
+                    return Err(reg_y_data.unwrap_err());
+                }
+    
+                let reg_y_data = reg_y_data.unwrap();
+    
+                return self.write_rg(reg_x, -reg_y_data);
+            },
+            "add" | "sub" | "mul" | "div" | "mod" => {
+                let reg_z_data = self.read_rg(reg_z);
 
-            return self.write_rg(reg_x, reg_y_data);
-        } else if instruction_name == "neg" {
-            let reg_y_data = self.read_rg(reg_y);
+                if reg_z_data.is_err() {
+                    return Err(reg_z_data.unwrap_err());
+                }
 
-            if reg_y_data.is_err() {
-                return Err(reg_y_data.unwrap_err());
-            }
+                let reg_z_data = reg_z_data.unwrap();
 
-            let reg_y_data = reg_y_data.unwrap();
+                let reg_y_data = self.read_rg(reg_y);
 
-            return self.write_rg(reg_x, -reg_y_data);
-        } else if vec!["add", "sub", "mul", "div", "mod"].contains(&instruction_name) {
-            let reg_z_data = self.read_rg(reg_z);
+                if reg_y_data.is_err() {
+                    return Err(reg_y_data.unwrap_err());
+                }
 
-            if reg_z_data.is_err() {
-                return Err(reg_z_data.unwrap_err());
-            }
+                let reg_y_data = reg_y_data.unwrap();
 
-            let reg_z_data = reg_z_data.unwrap();
+                if reg_z_data == 0 && instruction_name == "div" {
+                    return Err(RuntimeErr::DivideByZero);
+                }
 
-            let reg_y_data = self.read_rg(reg_y);
+                let result: i16 = match instruction_name {
+                    "add" => reg_y_data + reg_z_data,
+                    "sub" => reg_y_data - reg_z_data,
+                    "mul" => reg_y_data * reg_z_data,
+                    "div" => reg_y_data / reg_z_data,
+                    "mod" => reg_y_data % reg_z_data,
+                    _ => 0,
+                };
 
-            if reg_y_data.is_err() {
-                return Err(reg_y_data.unwrap_err());
-            }
-
-            let reg_y_data = reg_y_data.unwrap();
-
-            let result: i16;
-
-            if reg_z_data == 0 && instruction_name == "div" {
-                return Err(RuntimeErr::DivideByZero);
-            }
-            match instruction_name {
-                "add" => result = reg_y_data + reg_z_data,
-                "sub" => result = reg_y_data - reg_z_data,
-                "mul" => result = reg_y_data * reg_z_data,
-                "div" => result = reg_y_data / reg_z_data,
-                "mod" => result = reg_y_data % reg_z_data,
-                _ => result = 0,
-            }
-
-            return self.write_rg(reg_x, result);
-        } else if instruction_name == "jumpr" {
-            if reg_x_data < 0 {
-                return Err(RuntimeErr::InvalidProgramCounter);
-            }
-
-            return self.update_pc(reg_x_data as usize);
-        } else if instruction_name == "jumpn" {
-            return self.update_pc(ending_data_u8 as usize);
-        } else if instruction_name == "jeqzn" {
-            if reg_x_data == 0 {
+                return self.write_rg(reg_x, result);
+            },
+            "jumpr" => {
+                if reg_x_data < 0 {
+                    return Err(RuntimeErr::InvalidProgramCounter);
+                }
+    
+                self.just_updated_pc = true;
+                
+                return self.update_pc(reg_x_data as usize);
+            },
+            "jumpn" => {
+                self.just_updated_pc = true;
                 return self.update_pc(ending_data_u8 as usize);
-            } else {
-                Ok(())
-            }
-        } else if instruction_name == "jnezn" {
-            if reg_x_data != 0 {
-                return self.update_pc(ending_data_u8 as usize);
-            } else {
-                Ok(())
-            }
-        } else if instruction_name == "jgtzn" {
-            if reg_x_data > 0 {
-                return self.update_pc(ending_data_u8 as usize);
-            } else {
-                Ok(())
-            }
-        } else if instruction_name == "jltzn" {
-            if reg_x_data < 0 {
-                return self.update_pc(ending_data_u8 as usize);
-            } else {
-                Ok(())
-            }
-        } else if instruction_name == "calln" {
-            let update_rg = self.write_rg(reg_x, (pc + 1) as i16);
+            },
+            "jeqzn" => {
+                if reg_x_data == 0 {
+                    self.just_updated_pc = true;
+                    return self.update_pc(ending_data_u8 as usize);
+                } else {
+                    Ok(())
+                }
+            },
+            "jnezn" => {
+                if reg_x_data != 0 {
+                    self.just_updated_pc = true;
+                    return self.update_pc(ending_data_u8 as usize);
+                } else {
+                    Ok(())
+                }
+            },
+            "jgtzn" => {
+                if reg_x_data > 0 {
+                    self.just_updated_pc = true;
+                    return self.update_pc(ending_data_u8 as usize);
+                } else {
+                    Ok(())
+                }
+            },
+            "jltzn" => {
+                if reg_x_data < 0 {
+                    self.just_updated_pc = true;
+                    return self.update_pc(ending_data_u8 as usize);
+                } else {
+                    Ok(())
+                } 
+            },
+            "calln" => {
+                let update_rg = self.write_rg(reg_x, (pc + 1) as i16);
 
-            if update_rg.is_err() {
-                return Err(update_rg.unwrap_err());
-            }
+                if update_rg.is_err() {
+                    return Err(update_rg.unwrap_err());
+                }
+                
+                self.just_updated_pc = true;
+    
+                return self.update_pc(ending_data_u8 as usize); 
+            },
+            _ => Err(RuntimeErr::InvalidInstructionType),
+        };
 
-            return self.update_pc(ending_data_u8 as usize);
-        } else {
-            // This should never happen. But just in case...
-            Err(RuntimeErr::InvalidInstructionType)
-            // Like, there is no way this should ever happen
-            // unless you modify the code. Just sayin'
-        }
+        return result;
     }
 }
 
@@ -959,13 +992,19 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
             sim.registers[(row * 4) + 3]
         );
     }
-    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n");
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("████    PROGRAM COUNTER HISTORY     ████");
+
+    for (index, pc) in sim.counter_log.iter().enumerate() {
+        println!("█ INSTRUCTION #{:8} █ {:8}", index + 1, pc);
+    }
     println!("Exiting...");
     exit(1);
 }
 
 fn print_debug_screen(sim: &Simulator) {
-
+    println!("➤")
 }
 
 /// Function to compile a vec of HMMM instructions into
@@ -1196,6 +1235,7 @@ fn main() -> terminal::error::Result<()> {
                     // If it's an error, raise it
                     if result.is_err() {
                         let result_err = result.as_ref().unwrap_err();
+                        println!("{:?}", result_err);
                         // If the error is Halt, exit quietly, as that is the
                         // program successfully finishing
                         if result_err == &RuntimeErr::Halt {
