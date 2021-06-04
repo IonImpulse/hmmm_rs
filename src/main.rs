@@ -6,6 +6,7 @@ use std::process::*;
 use lazy_static::lazy_static;
 use std::*;
 use terminal::*;
+use colored::*;
 
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
@@ -513,6 +514,7 @@ pub enum RuntimeErr {
     InvalidMemoryData,
     InvalidMemoryLocation,
     InvalidData,
+    InvalidSignedNumber,
     Halt,
     InvalidProgramCounter,
     InstructionIsData,
@@ -646,6 +648,8 @@ impl Simulator {
     pub fn execute_next(&mut self) -> Result<(), RuntimeErr> {
         // Clone the current program counter for use in instructions
         let pc = self.program_counter.clone();
+        // Make sure to rest just_updated_pc to false
+        self.just_updated_pc = false;
         // Clone the current instruction from memory
         let instruction_to_run = self.memory[pc].clone();
         // Get the name of the instruction for quick reference
@@ -671,9 +675,9 @@ impl Simulator {
         let reg_x_data = reg_x_data.unwrap();
 
         let result: Result<(), RuntimeErr> = match instruction_name {
-            "data" => Err(RuntimeErr::InstructionIsData),
-            "halt" => Err(RuntimeErr::Halt),
-            "nop" => Ok(()),
+            "data" => return Err(RuntimeErr::InstructionIsData),
+            "halt" => return Err(RuntimeErr::Halt),
+            "nop" => return Ok(()),
             "read" => loop {
                 let mut line = String::new();
                 println!("Enter number:");
@@ -693,13 +697,12 @@ impl Simulator {
                 println!("Invalid number! Please try again...");
             },
             "write" => {
-                println!("{}", reg_x_data);
+                println!("HMMM OUT: {}", reg_x_data);
                 return Ok(());
-            },
+            }
             "setn" => {
-                let ending_data_i8 = i8::from_str_radix(
+                let ending_data_i8 = signed_binary_conversion(
                     instruction_to_run.binary_contents[2..].join("").as_str(),
-                    2,
                 );
 
                 if ending_data_i8.is_err() {
@@ -707,7 +710,7 @@ impl Simulator {
                 }
 
                 return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
-            },
+            }
             "loadr" => {
                 let data = self.read_mem(reg_y);
 
@@ -716,10 +719,10 @@ impl Simulator {
                 }
 
                 return self.write_rg(reg_x, data.unwrap());
-            },
+            }
             "storer" => {
                 return self.write_mem(reg_y, reg_x_data);
-            },
+            }
             "popr" => {
                 let reg_y_data = self.read_rg(reg_y);
 
@@ -750,7 +753,7 @@ impl Simulator {
                 let mem_data = mem_data.unwrap();
 
                 return self.write_rg(reg_x, mem_data);
-            },
+            }
             "pushr" => {
                 let reg_y_data = self.read_rg(reg_y);
                 if reg_y_data.is_err() {
@@ -770,7 +773,7 @@ impl Simulator {
                 }
 
                 return self.write_rg(reg_y, reg_y_data + 1);
-            },
+            }
             "loadn" => {
                 let memory_data = self.read_mem(ending_data_u8);
 
@@ -779,21 +782,21 @@ impl Simulator {
                 }
                 let memory_data = memory_data.unwrap();
                 return self.write_rg(reg_x, memory_data);
-            },
+            }
             "storen" => {
                 return self.write_mem(ending_data_u8, reg_x_data);
-            },
+            }
             "addn" => {
-                let ending_data_i8 = i8::from_str_radix(
+                let ending_data_i8 = signed_binary_conversion(
                     instruction_to_run.binary_contents[2..].join("").as_str(),
-                    2,
                 );
 
                 if ending_data_i8.is_err() {
                     return Err(RuntimeErr::InvalidData);
                 }
+
                 return self.write_rg(reg_x, reg_x_data + ending_data_i8.unwrap() as i16);
-            },
+            }
             "copy" => {
                 let reg_y_data = self.read_rg(reg_y);
 
@@ -804,18 +807,16 @@ impl Simulator {
                 let reg_y_data = reg_y_data.unwrap();
 
                 return self.write_rg(reg_x, reg_y_data);
-            },
+            }
             "neg" => {
                 let reg_y_data = self.read_rg(reg_y);
 
                 if reg_y_data.is_err() {
                     return Err(reg_y_data.unwrap_err());
                 }
-    
                 let reg_y_data = reg_y_data.unwrap();
-    
                 return self.write_rg(reg_x, -reg_y_data);
-            },
+            }
             "add" | "sub" | "mul" | "div" | "mod" => {
                 let reg_z_data = self.read_rg(reg_z);
 
@@ -847,20 +848,18 @@ impl Simulator {
                 };
 
                 return self.write_rg(reg_x, result);
-            },
+            }
             "jumpr" => {
                 if reg_x_data < 0 {
                     return Err(RuntimeErr::InvalidProgramCounter);
                 }
-    
                 self.just_updated_pc = true;
-                
                 return self.update_pc(reg_x_data as usize);
-            },
+            }
             "jumpn" => {
                 self.just_updated_pc = true;
                 return self.update_pc(ending_data_u8 as usize);
-            },
+            }
             "jeqzn" => {
                 if reg_x_data == 0 {
                     self.just_updated_pc = true;
@@ -868,7 +867,7 @@ impl Simulator {
                 } else {
                     Ok(())
                 }
-            },
+            }
             "jnezn" => {
                 if reg_x_data != 0 {
                     self.just_updated_pc = true;
@@ -876,7 +875,7 @@ impl Simulator {
                 } else {
                     Ok(())
                 }
-            },
+            }
             "jgtzn" => {
                 if reg_x_data > 0 {
                     self.just_updated_pc = true;
@@ -884,30 +883,66 @@ impl Simulator {
                 } else {
                     Ok(())
                 }
-            },
+            }
             "jltzn" => {
                 if reg_x_data < 0 {
                     self.just_updated_pc = true;
                     return self.update_pc(ending_data_u8 as usize);
                 } else {
                     Ok(())
-                } 
-            },
+                }
+            }
             "calln" => {
                 let update_rg = self.write_rg(reg_x, (pc + 1) as i16);
 
                 if update_rg.is_err() {
                     return Err(update_rg.unwrap_err());
                 }
-                
                 self.just_updated_pc = true;
-    
-                return self.update_pc(ending_data_u8 as usize); 
-            },
+
+                return self.update_pc(ending_data_u8 as usize);
+            }
             _ => Err(RuntimeErr::InvalidInstructionType),
         };
 
         return result;
+    }
+}
+
+fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
+    let is_negative: bool = { binary.starts_with("1") };
+    let mut binary_mut: String = binary.to_owned();
+    if is_negative {
+        binary_mut = binary.chars().rev().collect();
+        let mut found_1 = false;
+        let mut temp_string: String = "".to_string();
+
+        for i in binary_mut.chars() {
+            if found_1 == true {
+                if i == '1' {
+                    temp_string += "0";
+                } else {
+                    temp_string += "0";
+                }
+            } else if i == '1' && found_1 == false {
+                found_1 = true;
+                temp_string += "1";
+            }
+        }
+
+        binary_mut = temp_string.chars().rev().collect();
+    }
+
+    let decoded_signed = i8::from_str_radix(binary_mut.as_str(), 2);
+
+    if decoded_signed.is_err() {
+        return Err(RuntimeErr::InvalidSignedNumber);
+    }
+
+    if is_negative {
+        return Ok(0 - decoded_signed.unwrap());
+    } else {
+        return Ok(decoded_signed.unwrap());
     }
 }
 
@@ -946,9 +981,9 @@ fn raise_compile_error(
     line_parts: Vec<String>,
 ) {
     let args: String = line_parts[2..].join(" ");
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-    println!("████    COMPILATION UNSUCCESSFUL    ████");
-    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed());
+    println!("{}{}{}", "████".yellow(),"    COMPILATION UNSUCCESSFUL    ".red().on_yellow(),"████".yellow());
+    println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed());
     println!("\nERROR ON LINE {}: {:?}", line_num, error);
     println!("Raw: \"{}\"\n", raw_line);
     println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
@@ -963,15 +998,14 @@ fn raise_compile_error(
 /// Function to pretty-print a runtime error and exit
 /// the program gracefully
 fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
-    let last_run_line = sim.counter_log.last().unwrap().to_owned();
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-    println!("████    SIMULATION  UNSUCCESSFUL    ████");
-    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
-    println!("\nERROR EXECUTING ADDRESS {}: {:?}", last_run_line, error);
+    let current_line = sim.program_counter;
+    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed());
+    println!("{}{}{}", "████".yellow(),"    SIMULATION  UNSUCCESSFUL    ".red().on_yellow(),"████".yellow());
+    println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed());
+    println!("\nERROR EXECUTING ADDRESS {}: {:?}", current_line, error);
     println!(
         "MEMORY ADDRESS CONTENTS: {} {}\n",
-        sim.memory[last_run_line].instruction_type.names[0],
-        sim.memory[last_run_line].text_contents
+        sim.memory[current_line].instruction_type.names[0], sim.memory[current_line].text_contents
     );
     println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("█             REGISTER CONTENTS             █");
@@ -1163,12 +1197,20 @@ fn main() -> terminal::error::Result<()> {
             panic!("Unknown filetype!");
         }
 
+        // Print out startup message
+        println!("{}{}","██    ██  ████    ████ ".yellow()," ████    ████  ████    ████");
+        println!("{}{}","██    ██  ██ ██  ██ ██ ".yellow()," ██ ██  ██ ██  ██ ██  ██ ██");
+        println!("{}{}","████████  ██  ████  ██ ".yellow()," ██  ████  ██  ██  ████  ██");
+        println!("{}{}","██    ██  ██   ██   ██ ".yellow()," ██   ██   ██  ██   ██   ██");
+        println!("{}{}","██    ██  ██        ██ ".yellow()," ██        ██  ██        ██");
+        println!("{}"," HARVEY       MUDD       MINIATURE      MACHINE   ".black().dimmed().bold().on_white());
+
         // If compiles without error, print out a success
         // message and the first 9 lines, with the last being
         // printed also if there are > 9 lines
-        println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-        println!("████     COMPILATION SUCCESSFUL     ████");
-        println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+        println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow());
+        println!("{}{}{}", "████".yellow(),"     COMPILATION SUCCESSFUL     ".green().on_black().bold(),"████".yellow());
+        println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
         println!("\n");
         println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
         println!("█ Line █ Command █ Arguments           █");
@@ -1235,7 +1277,6 @@ fn main() -> terminal::error::Result<()> {
                     // If it's an error, raise it
                     if result.is_err() {
                         let result_err = result.as_ref().unwrap_err();
-                        println!("{:?}", result_err);
                         // If the error is Halt, exit quietly, as that is the
                         // program successfully finishing
                         if result_err == &RuntimeErr::Halt {
@@ -1243,6 +1284,7 @@ fn main() -> terminal::error::Result<()> {
                             exit(0);
                         } else {
                             // If not, raise that error!
+                            terminal.act(Action::ClearTerminal(Clear::All))?;
                             raise_runtime_error(&simulator, &result_err);
                         }
                     }
