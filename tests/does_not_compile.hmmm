@@ -1,0 +1,9 @@
+00 read r1          # get # from user to r1
+05 read r2          # get # from user to r2
+02 setn r3 1        # put 1 into r3
+03 jeqzn r2 99      # jump to line 7 if r2 == 0
+04 muml r3 r3 r1     # make r3 = r3 * r1
+05 addn r2 -1 r2      # make r2 = r2 - 1
+06 jumpn 03         # jump back to line 3
+07 write r3         # write out the result, r3
+08 halt             # stop

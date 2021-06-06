@@ -1175,6 +1175,17 @@ fn main() -> terminal::error::Result<()> {
         println!("Error: Please specify a file to compile/run!");
         exit(1);
     } else {
+
+        // Print out startup message
+        println!("{}{}","██    ██  ████    ████ ".yellow()," ████    ████  ████    ████");
+        println!("{}{}","██    ██  ██ ██  ██ ██ ".yellow()," ██ ██  ██ ██  ██ ██  ██ ██");
+        println!("{}{}","████████  ██  ████  ██ ".yellow()," ██  ████  ██  ██  ████  ██");
+        println!("{}{}","██    ██  ██   ██   ██ ".yellow()," ██   ██   ██  ██   ██   ██");
+        println!("{}{}","██    ██  ██        ██ ".yellow()," ██        ██  ██        ██");
+        println!("{}"," HARVEY       MUDD       MINIATURE      MACHINE   ".black().dimmed().italic().bold().on_white());
+
+        println!("\n");
+
         let file_path: &str = matches.value_of("input").unwrap();
 
         // Setup the vec for the compiled Instructions
@@ -1196,20 +1207,12 @@ fn main() -> terminal::error::Result<()> {
         } else {
             panic!("Unknown filetype!");
         }
-
-        // Print out startup message
-        println!("{}{}","██    ██  ████    ████ ".yellow()," ████    ████  ████    ████");
-        println!("{}{}","██    ██  ██ ██  ██ ██ ".yellow()," ██ ██  ██ ██  ██ ██  ██ ██");
-        println!("{}{}","████████  ██  ████  ██ ".yellow()," ██  ████  ██  ██  ████  ██");
-        println!("{}{}","██    ██  ██   ██   ██ ".yellow()," ██   ██   ██  ██   ██   ██");
-        println!("{}{}","██    ██  ██        ██ ".yellow()," ██        ██  ██        ██");
-        println!("{}"," HARVEY       MUDD       MINIATURE      MACHINE   ".black().dimmed().bold().on_white());
-
+        
         // If compiles without error, print out a success
         // message and the first 9 lines, with the last being
         // printed also if there are > 9 lines
         println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow());
-        println!("{}{}{}", "████".yellow(),"     COMPILATION SUCCESSFUL     ".green().on_black().bold(),"████".yellow());
+        println!("{}{}{}", "████".yellow(),"     COMPILATION SUCCESSFUL     ".green().bold(),"████".yellow());
         println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
         println!("\n");
         println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
