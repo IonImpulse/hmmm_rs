@@ -2,11 +2,12 @@ use clap::{App, Arg};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::process::*;
+use std::{thread, time};
 
+use colored::*;
 use lazy_static::lazy_static;
 use std::*;
 use terminal::*;
-use colored::*;
 
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
@@ -505,6 +506,41 @@ impl Instruction {
             binary_contents: binary_contents,
         })
     }
+
+    pub fn new_data() -> Self {
+        Instruction {
+            instruction_type: InstructionType::new(
+                vec!["data"],
+                "0000 0000 0000 0000",
+                "0000 0000 0000 0000",
+                "n",
+            ),
+            binary_contents: vec![
+                "0000".to_string(),
+                "0000".to_string(),
+                "0000".to_string(),
+                "0000".to_string(),
+            ],
+            text_contents: "data".to_string(),
+        }
+    }
+
+    pub fn as_hex(self) -> String {
+        let mut hex_string = "".to_string();
+
+        for i in 0..4 {
+            hex_string = format!(
+                "{}{}",
+                hex_string,
+                format!(
+                    "{:X}",
+                    u8::from_str_radix(self.binary_contents[i].as_str(), 2).unwrap()
+                )
+            );
+        }
+
+        return hex_string;
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -535,7 +571,7 @@ impl Simulator {
     pub fn new(compiled_text: Vec<Instruction>) -> Self {
         let data_left = 256 - compiled_text.len();
         let mut memory: Vec<Instruction> = compiled_text;
-        let data = Instruction::new_from_binary("0000 0000 0000 0000").unwrap();
+        let data = Instruction::new_data();
 
         for _ in 0..data_left {
             memory.push(data.clone());
@@ -680,7 +716,7 @@ impl Simulator {
             "nop" => return Ok(()),
             "read" => loop {
                 let mut line = String::new();
-                println!("Enter number:");
+                println!("{}", "Enter number:".on_yellow().black());
                 io::stdin().read_line(&mut line).unwrap();
                 line = line.trim().to_string();
 
@@ -697,7 +733,7 @@ impl Simulator {
                 println!("Invalid number! Please try again...");
             },
             "write" => {
-                println!("HMMM OUT: {}", reg_x_data);
+                println!("{}\n{}", "HMMM OUT:".on_green().black(), reg_x_data);
                 return Ok(());
             }
             "setn" => {
@@ -981,9 +1017,20 @@ fn raise_compile_error(
     line_parts: Vec<String>,
 ) {
     let args: String = line_parts[2..].join(" ");
-    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed());
-    println!("{}{}{}", "████".yellow(),"    COMPILATION UNSUCCESSFUL    ".red().on_yellow(),"████".yellow());
-    println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed());
+    println!(
+        "{}",
+        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed()
+    );
+    println!(
+        "{}{}{}",
+        "████".yellow(),
+        "    COMPILATION UNSUCCESSFUL    ".red().on_yellow(),
+        "████".yellow()
+    );
+    println!(
+        "{}",
+        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed()
+    );
     println!("\nERROR ON LINE {}: {:?}", line_num, error);
     println!("Raw: \"{}\"\n", raw_line);
     println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
@@ -999,9 +1046,20 @@ fn raise_compile_error(
 /// the program gracefully
 fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     let current_line = sim.program_counter;
-    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed());
-    println!("{}{}{}", "████".yellow(),"    SIMULATION  UNSUCCESSFUL    ".red().on_yellow(),"████".yellow());
-    println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed());
+    println!(
+        "{}",
+        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed()
+    );
+    println!(
+        "{}{}{}",
+        "████".yellow(),
+        "    SIMULATION  UNSUCCESSFUL    ".red().on_yellow(),
+        "████".yellow()
+    );
+    println!(
+        "{}",
+        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed()
+    );
     println!("\nERROR EXECUTING ADDRESS {}: {:?}", current_line, error);
     println!(
         "MEMORY ADDRESS CONTENTS: {} {}\n",
@@ -1038,7 +1096,65 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
 }
 
 fn print_debug_screen(sim: &Simulator) {
-    println!("➤")
+    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+    println!("█             REGISTER CONTENTS             █");
+
+    for row in 0..4 {
+        println!(
+            "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █",
+            row * 4,
+            (row * 4) + 1,
+            (row * 4) + 2,
+            (row * 4) + 3
+        );
+        println!(
+            "█ {:8} █ {:8} █ {:8} █ {:8} █",
+            sim.registers[row * 4],
+            sim.registers[(row * 4) + 1],
+            sim.registers[(row * 4) + 2],
+            sim.registers[(row * 4) + 3]
+        );
+    }
+    println!(
+        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄"
+    );
+    println!(
+        "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █"
+    );
+    let address_chars = vec![
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+    ];
+
+    let current_pc = &sim.program_counter;
+
+    for (i, address_rows) in address_chars.iter().enumerate() {
+        let mut to_print = format!("█  {} █", address_rows);
+
+        for (j, _address_columns) in address_chars.iter().enumerate() {
+            let memory_index = (i * 16) + j;
+
+            let current_instruction = sim.memory[memory_index].clone();
+
+            let instruction_text;
+            if current_pc == &memory_index {
+                instruction_text = current_instruction.as_hex().on_green();
+            } else {
+                if current_instruction.instruction_type.names[0] == "data" {
+                    instruction_text = current_instruction.as_hex().on_black();
+                } else {
+                    instruction_text = current_instruction.as_hex().on_purple();
+                }
+            }
+
+            to_print = format!("{} {} █", to_print, instruction_text);
+        }
+
+        println!("{}", to_print);
+    }
+
+    println!(
+        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+    );
 }
 
 /// Function to compile a vec of HMMM instructions into
@@ -1175,14 +1291,41 @@ fn main() -> terminal::error::Result<()> {
         println!("Error: Please specify a file to compile/run!");
         exit(1);
     } else {
-
         // Print out startup message
-        println!("{}{}","██    ██  ████    ████ ".yellow()," ████    ████  ████    ████");
-        println!("{}{}","██    ██  ██ ██  ██ ██ ".yellow()," ██ ██  ██ ██  ██ ██  ██ ██");
-        println!("{}{}","████████  ██  ████  ██ ".yellow()," ██  ████  ██  ██  ████  ██");
-        println!("{}{}","██    ██  ██   ██   ██ ".yellow()," ██   ██   ██  ██   ██   ██");
-        println!("{}{}","██    ██  ██        ██ ".yellow()," ██        ██  ██        ██");
-        println!("{}"," HARVEY       MUDD       MINIATURE      MACHINE   ".black().dimmed().italic().bold().on_white());
+        println!(
+            "{}{}",
+            "██    ██  ████    ████ ".yellow(),
+            " ████    ████  ████    ████"
+        );
+        println!(
+            "{}{}",
+            "██    ██  ██ ██  ██ ██ ".yellow(),
+            " ██ ██  ██ ██  ██ ██  ██ ██"
+        );
+        println!(
+            "{}{}",
+            "████████  ██  ████  ██ ".yellow(),
+            " ██  ████  ██  ██  ████  ██"
+        );
+        println!(
+            "{}{}",
+            "██    ██  ██   ██   ██ ".yellow(),
+            " ██   ██   ██  ██   ██   ██"
+        );
+        println!(
+            "{}{}",
+            "██    ██  ██        ██ ".yellow(),
+            " ██        ██  ██        ██"
+        );
+        println!(
+            "{}",
+            " HARVEY       MUDD       MINIATURE      MACHINE   "
+                .black()
+                .dimmed()
+                .italic()
+                .bold()
+                .on_white()
+        );
 
         println!("\n");
 
@@ -1207,12 +1350,16 @@ fn main() -> terminal::error::Result<()> {
         } else {
             panic!("Unknown filetype!");
         }
-        
         // If compiles without error, print out a success
         // message and the first 9 lines, with the last being
         // printed also if there are > 9 lines
         println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow());
-        println!("{}{}{}", "████".yellow(),"     COMPILATION SUCCESSFUL     ".green().bold(),"████".yellow());
+        println!(
+            "{}{}{}",
+            "████".yellow(),
+            "     COMPILATION SUCCESSFUL     ".green().bold(),
+            "████".yellow()
+        );
         println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
         println!("\n");
         println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
@@ -1268,34 +1415,36 @@ fn main() -> terminal::error::Result<()> {
         }
 
         // Run simulation if --no-run flag is not present
-        if matches.value_of("no-run").is_none() {
+        if !matches.is_present("no-run") {
             // Create it as new struct from compiled HMMM
             let mut simulator = Simulator::new(compiled_text);
+            if matches.is_present("debug") {
+                println!("{}", "ENTERING DEBUGGING MODE...".on_red());
+                thread::sleep(time::Duration::from_millis(3000));
+            }
 
-            // If not in debug mode, just run in a loop
-            if matches.value_of("debug").is_none() {
-                loop {
-                    // Attempt to run a step in the simulator
-                    let result = &simulator.step();
-                    // If it's an error, raise it
-                    if result.is_err() {
-                        let result_err = result.as_ref().unwrap_err();
-                        // If the error is Halt, exit quietly, as that is the
-                        // program successfully finishing
-                        if result_err == &RuntimeErr::Halt {
-                            println!("Program has reached end, exiting...");
-                            exit(0);
-                        } else {
-                            // If not, raise that error!
-                            terminal.act(Action::ClearTerminal(Clear::All))?;
-                            raise_runtime_error(&simulator, &result_err);
-                        }
+            loop {
+                if matches.is_present("debug") {
+                    terminal.act(Action::ClearTerminal(Clear::All))?;
+                    print_debug_screen(&simulator);
+                    thread::sleep(time::Duration::from_millis(500));
+                }
+                // Attempt to run a step in the simulator
+                let result = &simulator.step();
+                // If it's an error, raise it
+                if result.is_err() {
+                    let result_err = result.as_ref().unwrap_err();
+                    // If the error is Halt, exit quietly, as that is the
+                    // program successfully finishing
+                    if result_err == &RuntimeErr::Halt {
+                        println!("Program has reached end, exiting...");
+                        exit(0);
+                    } else {
+                        // If not, raise that error!
+                        terminal.act(Action::ClearTerminal(Clear::All))?;
+                        raise_runtime_error(&simulator, &result_err);
                     }
                 }
-            }
-            // If in debug mode, start debug mode
-            else {
-                print_debug_screen(&simulator);
             }
         }
 
