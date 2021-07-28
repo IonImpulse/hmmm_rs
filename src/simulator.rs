@@ -1,7 +1,10 @@
-use lazy_static::lazy_static;
 use colored::*;
+use lazy_static::lazy_static;
 use std::io;
-
+use std::io::stdin;
+use std::io::BufRead;
+use std::{thread, time};
+use terminal::*;
 lazy_static! {
     static ref INSTRUCTION_LOOKUP: Vec<InstructionType> = vec![
         InstructionType::new(
@@ -555,6 +558,7 @@ pub struct Simulator {
     pub program_counter: usize,
     pub counter_log: Vec<usize>,
     pub just_updated_pc: bool,
+    pub debug: bool,
 }
 
 impl Simulator {
@@ -577,6 +581,7 @@ impl Simulator {
             program_counter: 0,
             counter_log: Vec::new(),
             just_updated_pc: false,
+            debug: false,
         }
     }
 
@@ -699,15 +704,29 @@ impl Simulator {
         }
 
         let reg_x_data = reg_x_data.unwrap();
-
         let result: Result<(), RuntimeErr> = match instruction_name {
             "data" => return Err(RuntimeErr::InstructionIsData),
             "halt" => return Err(RuntimeErr::Halt),
             "nop" => return Ok(()),
             "read" => loop {
                 let mut line = String::new();
-                println!("{}", "Enter number:".on_yellow().black());
-                io::stdin().read_line(&mut line).unwrap();
+                if self.debug == true {
+                    let mut w = terminal::stdout();
+                    w.act(Action::ShowCursor);
+                    w.act(Action::EnableBlinking);
+                    w.act(Action::MoveCursorTo(0, 29)).unwrap();
+                    print!("{}", "Enter number:".on_yellow().black());
+                    w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    print!("                                 ");
+                    w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    stdin().lock().read_line(&mut line).unwrap();
+                    w.act(Action::DisableBlinking);
+                    w.act(Action::HideCursor);
+                } else {
+                    println!("{}", "Enter number:".on_yellow().black());
+                    io::stdin().read_line(&mut line).unwrap();
+                }
+
                 line = line.trim().to_string();
 
                 if line == "q" {
@@ -717,13 +736,33 @@ impl Simulator {
                 let number = line.parse::<i16>();
 
                 if number.is_ok() {
+                    if self.debug == true {
+                        let mut w = terminal::stdout();
+                        w.act(Action::MoveCursorTo(16, 29)).unwrap();
+                        print!("                                        ");
+                    }
                     return self.write_rg(reg_x, number.unwrap());
                 }
-
-                println!("Invalid number! Please try again...");
+                if self.debug == true {
+                    let mut w = terminal::stdout();
+                    w.act(Action::MoveCursorTo(16, 29)).unwrap();
+                    print!("Invalid number! Please try again...");
+                } else {
+                    println!("Invalid number! Please try again...");
+                }
             },
             "write" => {
-                println!("{}\n{}", "HMMM OUT:".on_green().black(), reg_x_data);
+                if self.debug == true {
+                    let mut w = terminal::stdout();
+                    w.act(Action::MoveCursorTo(50, 3)).unwrap();
+                    let to_print = format!("{}", "HMMM OUT:".on_green().black());
+                    print!("{}", to_print);
+                    w.act(Action::MoveCursorTo(50, 4)).unwrap();
+                    let to_print = format!("{:<10}", reg_x_data);
+                    print!("{}", to_print);
+                } else {
+                    println!("{}\n{}", "HMMM OUT:".on_green().black(), reg_x_data);
+                }
                 return Ok(());
             }
             "setn" => {

@@ -7,6 +7,7 @@ use std::{thread, time};
 use colored::*;
 use std::*;
 use terminal::*;
+use unicode_segmentation::UnicodeSegmentation;
 
 mod simulator;
 use simulator::*;
@@ -17,7 +18,7 @@ static COMPILED: &str = ".hb";
 /// Function that takes the current state of the terminal
 /// and prints out only the lines that are different from the last time
 /// we printed.
-/// 
+///
 /// This is so that we can avoid printing the entire screen every time.
 
 /// Function to load any text file as a Vec of Strings
@@ -118,36 +119,42 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     exit(1);
 }
 
+fn print_debug_screen(sim: &mut Simulator) -> terminal::error::Result<()> {
+    let mut debug_screen_lines: Vec<String> = Vec::new();
 
-fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
-    let mut w = terminal::stdout();
-    w.batch(Action::ClearTerminal(Clear::All))?;
+    debug_screen_lines.push(format!(
+        "{}",
+        "█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█\n"
+    ));
 
-    write!(&mut w, "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n");
-    write!(&mut w, "█             REGISTER CONTENTS             █\n");
+    debug_screen_lines.push(format!(
+        "{}",
+        "█             REGISTER CONTENTS             █\n"
+    ));
 
     for row in 0..4 {
-        write!(&mut w, 
+        debug_screen_lines.push(format!(
             "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █\n",
             row * 4,
             (row * 4) + 1,
             (row * 4) + 2,
             (row * 4) + 3
-        );
-        write!(&mut w, 
+        ));
+
+        debug_screen_lines.push(format!(
             "█ {:8} █ {:8} █ {:8} █ {:8} █\n",
             sim.registers[row * 4],
             sim.registers[(row * 4) + 1],
             sim.registers[(row * 4) + 2],
             sim.registers[(row * 4) + 3]
-        );
+        ));
     }
-    write!(&mut w, 
-        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n"
-    );
-    write!(&mut w, 
+    debug_screen_lines.push(format!("{}", 
+        "█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n"
+    ));
+    debug_screen_lines.push(format!("{}", 
         "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n"
-    );
+    ));
     let address_chars = vec![
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
     ];
@@ -176,12 +183,20 @@ fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             to_print = format!("{} {} █", to_print, instruction_text);
         }
 
-        write!(&mut w, "{}\n", to_print);
+        debug_screen_lines.push(format!("{}\n", to_print));
     }
 
-    write!(&mut w, 
+    debug_screen_lines.push(format!("{}", 
         "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
-    );
+    ));
+
+    let mut w = terminal::stdout();
+    w.act(Action::MoveCursorTo(0, 0))?;
+
+    // Print line by line to avoid having to strobe the screen
+    for line in debug_screen_lines {
+        print!("{}", line);
+    }
 
     w.flush()?;
 
@@ -451,12 +466,16 @@ fn main() -> terminal::error::Result<()> {
             let mut simulator = Simulator::new(compiled_text);
             if matches.is_present("debug") {
                 println!("{}", "ENTERING DEBUGGING MODE...".on_red());
-                thread::sleep(time::Duration::from_millis(3000));
+                simulator.debug = true;
+                thread::sleep(time::Duration::from_millis(1000));
+                terminal.act(Action::ClearTerminal(Clear::All))?;
+                terminal.act(Action::DisableBlinking)?;
+                terminal.act(Action::HideCursor)?;
             }
 
             loop {
-                if matches.is_present("debug") {
-                    print_debug_screen(&simulator)?;
+                if simulator.debug == true {
+                    print_debug_screen(&mut simulator)?;
                     thread::sleep(time::Duration::from_millis(500));
                 }
                 // Attempt to run a step in the simulator
@@ -467,8 +486,15 @@ fn main() -> terminal::error::Result<()> {
                     // If the error is Halt, exit quietly, as that is the
                     // program successfully finishing
                     if result_err == &RuntimeErr::Halt {
-                        terminal.act(Action::ClearTerminal(Clear::All))?;
-                        println!("Program has reached end, exiting...");
+                        if simulator.debug == true {
+                            terminal.act(Action::MoveCursorTo(0, 31))?;
+                        }
+
+                        println!(
+                            "{}",
+                            "Program has reached end, exiting...".black().on_green()
+                        );
+
                         exit(0);
                     } else {
                         // If not, raise that error!
