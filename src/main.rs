@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::process::*;
 use std::{thread, time};
 
@@ -14,6 +14,11 @@ use simulator::*;
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
 
+/// Function that takes the current state of the terminal
+/// and prints out only the lines that are different from the last time
+/// we printed.
+/// 
+/// This is so that we can avoid printing the entire screen every time.
 
 /// Function to load any text file as a Vec of Strings
 fn load_file(path: &str) -> std::io::Result<Vec<String>> {
@@ -113,31 +118,35 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     exit(1);
 }
 
-fn print_debug_screen(sim: &Simulator) {
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-    println!("█             REGISTER CONTENTS             █");
+
+fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
+    let mut w = terminal::stdout();
+    w.batch(Action::ClearTerminal(Clear::All))?;
+
+    write!(&mut w, "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n");
+    write!(&mut w, "█             REGISTER CONTENTS             █\n");
 
     for row in 0..4 {
-        println!(
-            "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █",
+        write!(&mut w, 
+            "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █\n",
             row * 4,
             (row * 4) + 1,
             (row * 4) + 2,
             (row * 4) + 3
         );
-        println!(
-            "█ {:8} █ {:8} █ {:8} █ {:8} █",
+        write!(&mut w, 
+            "█ {:8} █ {:8} █ {:8} █ {:8} █\n",
             sim.registers[row * 4],
             sim.registers[(row * 4) + 1],
             sim.registers[(row * 4) + 2],
             sim.registers[(row * 4) + 3]
         );
     }
-    println!(
-        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄"
+    write!(&mut w, 
+        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n"
     );
-    println!(
-        "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █"
+    write!(&mut w, 
+        "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n"
     );
     let address_chars = vec![
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
@@ -167,12 +176,16 @@ fn print_debug_screen(sim: &Simulator) {
             to_print = format!("{} {} █", to_print, instruction_text);
         }
 
-        println!("{}", to_print);
+        write!(&mut w, "{}\n", to_print);
     }
 
-    println!(
-        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+    write!(&mut w, 
+        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
     );
+
+    w.flush()?;
+
+    Ok(())
 }
 
 /// Function to compile a vec of HMMM instructions into
@@ -443,8 +456,7 @@ fn main() -> terminal::error::Result<()> {
 
             loop {
                 if matches.is_present("debug") {
-                    terminal.act(Action::ClearTerminal(Clear::All))?;
-                    print_debug_screen(&simulator);
+                    print_debug_screen(&simulator)?;
                     thread::sleep(time::Duration::from_millis(500));
                 }
                 // Attempt to run a step in the simulator
@@ -455,6 +467,7 @@ fn main() -> terminal::error::Result<()> {
                     // If the error is Halt, exit quietly, as that is the
                     // program successfully finishing
                     if result_err == &RuntimeErr::Halt {
+                        terminal.act(Action::ClearTerminal(Clear::All))?;
                         println!("Program has reached end, exiting...");
                         exit(0);
                     } else {
