@@ -1,3 +1,4 @@
+![Rust Build](https://github.com/IonImpulse/HMMM-Rust/actions/workflows/rust.yaml/badge.svg)
 # HMMM-Rust
 ```
 ██    ██  ████    ████  ████    ████  ████    ████
