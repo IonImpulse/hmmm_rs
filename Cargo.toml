@@ -10,7 +10,6 @@ edition = "2018"
 lazy_static = "*"
 clap = "*"
 colored = "2"
-unicode-segmentation = "*"
 
 [dependencies.terminal]
 version = "0.2.1"

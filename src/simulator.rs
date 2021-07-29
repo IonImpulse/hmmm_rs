@@ -3,7 +3,6 @@ use lazy_static::lazy_static;
 use std::io;
 use std::io::stdin;
 use std::io::BufRead;
-use std::{thread, time};
 use terminal::*;
 lazy_static! {
     static ref INSTRUCTION_LOOKUP: Vec<InstructionType> = vec![
@@ -737,14 +736,14 @@ impl Simulator {
 
                 if number.is_ok() {
                     if self.debug == true {
-                        let mut w = terminal::stdout();
+                        let w = terminal::stdout();
                         w.act(Action::MoveCursorTo(16, 29)).unwrap();
                         print!("                                        ");
                     }
                     return self.write_rg(reg_x, number.unwrap());
                 }
                 if self.debug == true {
-                    let mut w = terminal::stdout();
+                    let w = terminal::stdout();
                     w.act(Action::MoveCursorTo(16, 29)).unwrap();
                     print!("Invalid number! Please try again...");
                 } else {
@@ -753,7 +752,7 @@ impl Simulator {
             },
             "write" => {
                 if self.debug == true {
-                    let mut w = terminal::stdout();
+                    let w = terminal::stdout();
                     w.act(Action::MoveCursorTo(50, 3)).unwrap();
                     let to_print = format!("{}", "HMMM OUT:".on_green().black());
                     print!("{}", to_print);

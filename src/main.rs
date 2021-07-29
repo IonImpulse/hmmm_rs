@@ -7,7 +7,6 @@ use std::{thread, time};
 use colored::*;
 use std::*;
 use terminal::*;
-use unicode_segmentation::UnicodeSegmentation;
 
 mod simulator;
 use simulator::*;
