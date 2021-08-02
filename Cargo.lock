@@ -3,16 +3,6 @@
 version = 3
 
 [[package]]
-name = "HMMM-Rust"
-version = "0.1.0"
-dependencies = [
- "clap",
- "colored",
- "lazy_static",
- "terminal",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -133,6 +123,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "322f4de77956e22ed0e5032c359a0f1273f1f7f0d79bfa3b8ffbc730d7fbcc5c"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "hmmm_rs"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "colored",
+ "lazy_static",
+ "terminal",
 ]
 
 [[package]]
