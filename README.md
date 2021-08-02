@@ -1,3 +1,4 @@
+[![Cargo Build](https://github.com/IonImpulse/HMMM-Rust/actions/workflows/rust.yml/badge.svg)](https://github.com/IonImpulse/HMMM-Rust/actions/workflows/rust.yml)
 # HMMM-Rust
 ```
 ██    ██  ████    ████  ████    ████  ████    ████
