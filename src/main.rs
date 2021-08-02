@@ -68,7 +68,7 @@ fn raise_compile_error(
 /// Function to pretty-print a runtime error and exit
 /// the program gracefully
 fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
-    let current_line = sim.program_counter;
+    let current_line = sim.get_program_counter();
     println!(
         "{}",
         "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed()
@@ -84,9 +84,10 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
         "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed()
     );
     println!("\nERROR EXECUTING ADDRESS {}: {:?}", current_line, error);
+    let current_line_contents = sim.get_memory(current_line).unwrap();
     println!(
         "MEMORY ADDRESS CONTENTS: {} {}\n",
-        sim.memory[current_line].instruction_type.names[0], sim.memory[current_line].text_contents
+        current_line_contents.instruction_type.names[0], current_line_contents.text_contents
     );
     println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("█             REGISTER CONTENTS             █");
@@ -101,24 +102,27 @@ fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
         );
         println!(
             "█ {:8} █ {:8} █ {:8} █ {:8} █",
-            sim.registers[row * 4],
-            sim.registers[(row * 4) + 1],
-            sim.registers[(row * 4) + 2],
-            sim.registers[(row * 4) + 3]
+            &sim.get_register(row * 4).unwrap_or(0),
+            &sim.get_register((row * 4) + 1).unwrap_or(0),
+            &sim.get_register((row * 4) + 2).unwrap_or(0),
+            &sim.get_register((row * 4) + 3).unwrap_or(0),
         );
     }
     println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n");
     println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("████    PROGRAM COUNTER HISTORY     ████");
 
-    for (index, pc) in sim.counter_log.iter().enumerate() {
+    for (index, pc) in sim.get_counter_log().iter().enumerate() {
         println!("█ INSTRUCTION #{:8} █ {:8}", index + 1, pc);
     }
     println!("Exiting...");
     exit(1);
 }
 
-fn print_debug_screen(sim: &mut Simulator) -> terminal::error::Result<()> {
+/// Function to print the current state of the simulator
+/// (registers, memory, etc.) to the screen without flickering
+/// (i.e. no flicker when the screen is updated)
+fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let mut debug_screen_lines: Vec<String> = Vec::new();
 
     debug_screen_lines.push(format!(
@@ -142,10 +146,10 @@ fn print_debug_screen(sim: &mut Simulator) -> terminal::error::Result<()> {
 
         debug_screen_lines.push(format!(
             "█ {:8} █ {:8} █ {:8} █ {:8} █\n",
-            sim.registers[row * 4],
-            sim.registers[(row * 4) + 1],
-            sim.registers[(row * 4) + 2],
-            sim.registers[(row * 4) + 3]
+            &sim.get_register(row * 4).unwrap_or(0),
+            &sim.get_register((row * 4) + 1).unwrap_or(0),
+            &sim.get_register((row * 4) + 2).unwrap_or(0),
+            &sim.get_register((row * 4) + 3).unwrap_or(0),
         ));
     }
     debug_screen_lines.push(format!("{}", 
@@ -158,7 +162,7 @@ fn print_debug_screen(sim: &mut Simulator) -> terminal::error::Result<()> {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
     ];
 
-    let current_pc = &sim.program_counter;
+    let current_pc = &sim.get_program_counter();
 
     for (i, address_rows) in address_chars.iter().enumerate() {
         let mut to_print = format!("█  {} █", address_rows);
@@ -166,7 +170,10 @@ fn print_debug_screen(sim: &mut Simulator) -> terminal::error::Result<()> {
         for (j, _address_columns) in address_chars.iter().enumerate() {
             let memory_index = (i * 16) + j;
 
-            let current_instruction = sim.memory[memory_index].clone();
+            // We can safely unwrap here because we know that the memory
+            // is fully populated. Any errors will be caught at compile time,
+            // or worst case, with a RuntimeErr.
+            let current_instruction = sim.get_memory(memory_index).unwrap();
 
             let instruction_text;
             if current_pc == &memory_index {

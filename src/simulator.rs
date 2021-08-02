@@ -727,7 +727,6 @@ impl Simulator {
                 }
 
                 line = line.trim().to_string();
-
                 if line == "q" {
                     return Err(RuntimeErr::Halt);
                 }
@@ -970,6 +969,34 @@ impl Simulator {
         };
 
         return result;
+    }
+
+    /// Returns the current program counter as usize
+    pub fn get_program_counter(&self) -> usize {
+        return self.program_counter;
+    }
+
+    /// Returns the register value at the given register index
+    pub fn get_register(&self, address: usize) -> Option<i16> {
+        let option = self.registers.get(address);
+
+        if option.is_none() {
+            return None;
+        } else {
+            return Some(option.unwrap().clone());
+        }
+    }
+    /// Returns the Instruction struct at memory[address] as Option
+    pub fn get_memory(&self, address: usize) -> Option<Instruction> {
+        let option = self.memory.get(address);
+        if option.is_none() {
+            return None;
+        } else {
+            return Some(option.unwrap().clone());
+        }
+    }
+    pub fn get_counter_log(&self) -> Vec<usize> {
+        return self.counter_log.clone();
     }
 }
 
