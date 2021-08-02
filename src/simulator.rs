@@ -217,7 +217,7 @@ impl InstructionType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompileErr {
     InstructionDoesNotExist,
     InvalidArgumentType,
@@ -230,6 +230,24 @@ pub enum CompileErr {
     CorruptedBinary,
     LineNumberNotPresent,
     InvalidLineNumber,
+}
+
+impl CompileErr {
+    pub fn as_code(self) -> i32 {
+        match self {
+            CompileErr::InstructionDoesNotExist => 10,
+            CompileErr::InvalidArgumentType => 11,
+            CompileErr::InvalidRegister => 12,
+            CompileErr::TooManyArguments => 13,
+            CompileErr::TooFewArguments => 14,
+            CompileErr::InvalidSignedNumber => 15,
+            CompileErr::InvalidUnsignedNumber => 16,
+            CompileErr::InvalidNumber => 17,
+            CompileErr::CorruptedBinary => 18,
+            CompileErr::LineNumberNotPresent => 19,
+            CompileErr::InvalidLineNumber => 20,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -535,7 +553,7 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum RuntimeErr {
     InvalidRegisterLocation,
     MemoryLocationNotData,
@@ -548,6 +566,24 @@ pub enum RuntimeErr {
     InstructionIsData,
     InvalidInstructionType,
     DivideByZero,
+}
+
+impl RuntimeErr {
+    pub fn as_code(self) -> i32 {
+        match self {
+            RuntimeErr::InvalidRegisterLocation => 100,
+            RuntimeErr::MemoryLocationNotData => 101,
+            RuntimeErr::InvalidMemoryData => 102,
+            RuntimeErr::InvalidMemoryLocation => 103,
+            RuntimeErr::InvalidData => 104,
+            RuntimeErr::InvalidSignedNumber => 105,
+            RuntimeErr::Halt => 106,
+            RuntimeErr::InvalidProgramCounter => 107,
+            RuntimeErr::InstructionIsData => 108,
+            RuntimeErr::InvalidInstructionType => 109,
+            RuntimeErr::DivideByZero => 110,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]

@@ -8,7 +8,7 @@ use colored::*;
 use std::*;
 use terminal::*;
 
-mod simulator;
+pub mod simulator;
 use simulator::*;
 
 static UNCOMPILED: &str = ".hmmm";
@@ -56,7 +56,6 @@ pub fn raise_compile_error(
     println!("█ {:4} █ {:7} █ {:15}", line_parts[0], line_parts[1], args);
     println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
     println!("Exiting...");
-    exit(1);
 }
 
 /// Function to pretty-print a runtime error and exit
@@ -110,7 +109,6 @@ pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
         println!("█ INSTRUCTION #{:8} █ {:8}", index + 1, pc);
     }
     println!("Exiting...");
-    exit(1);
 }
 
 /// Function to print the current state of the simulator
@@ -205,7 +203,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
 
 /// Function to compile a vec of HMMM instructions into
 /// a Vec of Instruction structs
-pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
+pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Result<Vec<Instruction>, CompileErr> {
     let mut line_counter = 0;
     let mut compiled_text: Vec<Instruction> = Vec::new();
 
@@ -230,13 +228,17 @@ pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
             let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
             if line_number.is_err() {
                 raise_compile_error(index, CompileErr::LineNumberNotPresent, line, line_parts);
+                return Err(CompileErr::LineNumberNotPresent);
             } else {
                 if line_number.unwrap() != line_counter {
                     raise_compile_error(index, CompileErr::InvalidLineNumber, line, line_parts);
+                    return Err(CompileErr::InvalidLineNumber);
                 } else {
                     let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
                     if next_instruction.is_err() {
-                        raise_compile_error(index, next_instruction.unwrap_err(), line, line_parts);
+                        let err = next_instruction.unwrap_err();
+                        raise_compile_error(index, err.clone(), line, line_parts);
+                        return Err(err);
                     } else {
                         compiled_text.push(next_instruction.unwrap());
                         line_counter += 1;
@@ -246,7 +248,7 @@ pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Vec<Instruction> {
         }
     }
 
-    compiled_text
+    Ok(compiled_text)
 }
 
 /// Function to read a vec of binary HMMM text into
@@ -391,7 +393,14 @@ pub fn main() -> terminal::error::Result<()> {
             let uncompiled_text = load_file(file_path).unwrap();
 
             // Then, compile it into Instruction structs
-            compiled_text = compile_hmmm(uncompiled_text);
+            let compile_result = compile_hmmm(uncompiled_text);
+
+            if compile_result.is_err() {
+                exit(compile_result.unwrap_err().as_code())
+            } else {
+                compiled_text = compile_result.unwrap();
+            }
+            
         } else if file_path.ends_with(COMPILED) {
             // If it's already compiled, load it
             let raw_binary = load_file(file_path).unwrap();

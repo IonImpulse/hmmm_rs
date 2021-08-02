@@ -1,4 +1,4 @@
 use hmmm_rs;
-fn main () {
+fn main() {
     hmmm_rs::main().unwrap()
 }
