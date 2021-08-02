@@ -18,7 +18,7 @@ Currently, this project is still in **alpha**, so bugs may pop up here and there
 # How to use it:
 ```
 USAGE:
-    HMMM-Rust.exe [FLAGS] [OPTIONS]
+    hmmm_rs.exe [FLAGS] [OPTIONS]
 
 FLAGS:
     -d, --debug      Use debug mode for stepping through simulator
@@ -31,10 +31,10 @@ OPTIONS:
     -o, --output <output>    Output location of either .hmmm or .hb file
 ```
 
-Just run a .hmmm file: `.\HMMM-Rust -i tests\test.hmmm`
+Just run a .hmmm file: `.\hmmm_rs -i tests\test.hmmm`
 
-Run a .hmmm file and save the compiled binary: `.\HMMM-Rust -i tests\test.hmmm -o compiled.hb`
+Run a .hmmm file and save the compiled binary: `.\hmmm_rs -i tests\test.hmmm -o compiled.hb`
 
-Decompile a .hb file and save it as a .hmmm file: `.\HMMM-Rust -i compiled.hb -o tests\test.hmmm`
+Decompile a .hb file and save it as a .hmmm file: `.\hmmm_rs -i compiled.hb -o tests\test.hmmm`
 
 NOTE: compiling to a .hmmm file to a .hb file and then decompiling to a .hmmm file will result in the same program, but comments in the original .hmmm file will be lost.
