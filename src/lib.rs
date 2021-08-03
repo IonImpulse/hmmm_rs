@@ -17,10 +17,10 @@ static COMPILED: &str = ".hb";
 /// Function to load any text file as a Vec of Strings
 pub fn load_file(path: &str) -> std::io::Result<Vec<String>> {
     let reader = BufReader::new(File::open(path).expect("Cannot open file"));
-    let mut output_vec: Vec<String> = Vec::new();
-    for line in reader.lines() {
-        output_vec.push(line?.trim().to_string());
-    }
+    let output_vec: Vec<String> = reader
+        .lines()
+        .map(|line| line.unwrap().trim().to_string())
+        .collect();
 
     Ok(output_vec)
 }
@@ -34,81 +34,67 @@ pub fn raise_compile_error(
     line_parts: Vec<String>,
 ) {
     let args: String = line_parts[2..].join(" ");
-    println!(
-        "{}",
-        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed()
-    );
+
+    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow());
     println!(
         "{}{}{}",
         "████".yellow(),
-        "    COMPILATION UNSUCCESSFUL    ".red().on_yellow(),
+        "    COMPILATION UNSUCCESSFUL    ".red().bold(),
         "████".yellow()
     );
+    println!("{}\n", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
+
     println!(
-        "{}",
-        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed()
+        "{} {:?}",
+        format!("{} {}:", " ERROR ON LINE", line_num)
+            .on_red()
+            .white()
+            .bold(),
+        error,
     );
-    println!("\nERROR ON LINE {}: {:?}", line_num, error);
-    println!("Raw: \"{}\"\n", raw_line);
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
+
+    println!("{} \"{}\"\n", " RAW TEXT:".on_red().white().bold(), raw_line.white(),);
+    println!("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("█           Interpreted As: ");
     println!("█ Line █ Command █ Arguments ");
     println!("█ {:4} █ {:7} █ {:15}", line_parts[0], line_parts[1], args);
-    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    println!("█▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
     println!("Exiting...");
 }
 
 /// Function to pretty-print a runtime error and exit
 /// the program gracefully
 pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
+    // Easy way to display information: show the debug screen!
+    print_debug_screen(&sim);
     let current_line = sim.get_program_counter();
-    println!(
-        "{}",
-        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow().dimmed()
-    );
+
+    let w = terminal::stdout();
+    w.act(Action::MoveCursorTo(0, 29)).unwrap();
+    println!("{}", "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀".yellow());
     println!(
         "{}{}{}",
         "████".yellow(),
-        "    SIMULATION  UNSUCCESSFUL    ".red().on_yellow(),
+        "    SIMULATION UNSUCCESSFUL     ".red().bold(),
         "████".yellow()
     );
+    println!("{}\n", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
+
     println!(
-        "{}",
-        "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow().dimmed()
+        "{} {:?}",
+        format!("{} {}:", " ERROR EXECUTING ADDRESS", current_line)
+            .on_red()
+            .white()
+            .bold(),
+        error
     );
-    println!("\nERROR EXECUTING ADDRESS {}: {:?}", current_line, error);
     let current_line_contents = sim.get_memory(current_line).unwrap();
     println!(
-        "MEMORY ADDRESS CONTENTS: {} {}\n",
-        current_line_contents.instruction_type.names[0], current_line_contents.text_contents
+        "{} {} {}\n",
+        " MEMORY ADDRESS CONTENTS:".on_red().white().bold(),
+        current_line_contents.instruction_type.names[0],
+        current_line_contents.text_contents
     );
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-    println!("█             REGISTER CONTENTS             █");
-
-    for row in 0..4 {
-        println!(
-            "█    R{: <2}   █    R{: <2}   █    R{: <2}   █    R{: <2}   █",
-            row * 4,
-            (row * 4) + 1,
-            (row * 4) + 2,
-            (row * 4) + 3
-        );
-        println!(
-            "█ {:8} █ {:8} █ {:8} █ {:8} █",
-            &sim.get_register(row * 4).unwrap_or(0),
-            &sim.get_register((row * 4) + 1).unwrap_or(0),
-            &sim.get_register((row * 4) + 2).unwrap_or(0),
-            &sim.get_register((row * 4) + 3).unwrap_or(0),
-        );
-    }
-    println!("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n");
-    println!("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
-    println!("████    PROGRAM COUNTER HISTORY     ████");
-
-    for (index, pc) in sim.get_counter_log().iter().enumerate() {
-        println!("█ INSTRUCTION #{:8} █ {:8}", index + 1, pc);
-    }
-    println!("Exiting...");
 }
 
 /// Function to print the current state of the simulator
@@ -119,12 +105,14 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
 
     debug_screen_lines.push(format!(
         "{}",
-        "█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█\n"
+        "█▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀█\n",
     ));
 
     debug_screen_lines.push(format!(
-        "{}",
-        "█             REGISTER CONTENTS             █\n"
+        "{}{}{}",
+        "█          █ ",
+        " REGISTER CONTENTS ".bold().on_blue(),
+        " █          █\n",
     ));
 
     for row in 0..4 {
@@ -188,13 +176,49 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
         "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
     ));
 
+    // Create terminal object to print out the debug screen
     let mut w = terminal::stdout();
+    // Make sure the cursor is at the top of the screen
     w.act(Action::MoveCursorTo(0, 0))?;
-
     // Print line by line to avoid having to strobe the screen
     for line in debug_screen_lines {
         print!("{}", line);
     }
+
+    // Line by line printing done, now to print out program counter,
+    // IR, and HMMM output.
+
+    // Print program counter
+    w.act(Action::MoveCursorTo(50, 1)).unwrap();
+    let to_print = format!("{}", " PROGRAM COUNTER: ".on_red().white().bold());
+    print!("{}", to_print);
+    w.act(Action::MoveCursorTo(50, 2)).unwrap();
+    let to_print = format!("{:<10}", sim.get_program_counter());
+    print!("{}", to_print);
+
+    // Print IR
+    w.act(Action::MoveCursorTo(50, 4)).unwrap();
+    let to_print = format!("{}", " INSTRUCTION REGISTER: ".on_red().white().bold());
+    print!("{}", to_print);
+    let memory_ir = sim.get_memory(sim.get_program_counter());
+
+    if memory_ir.is_some() {
+        let memory_ir = memory_ir.unwrap();
+        w.act(Action::MoveCursorTo(50, 5)).unwrap();
+        let to_print = format!(
+            "{:<15}",
+            format!(
+                "{} {}",
+                memory_ir.instruction_type.names[0], memory_ir.text_contents
+            )
+        );
+        print!("{}", to_print);
+    }
+
+    // Print HMMM output
+    w.act(Action::MoveCursorTo(50, 7)).unwrap();
+    let to_print = format!("{}", " HMMM OUT: ".on_green().white().bold());
+    print!("{}", to_print);
 
     w.flush()?;
 
@@ -382,7 +406,7 @@ pub fn main() -> terminal::error::Result<()> {
 
         println!("\n");
 
-        let file_path: &str = matches.value_of("input").unwrap();
+        let file_path: &str = matches.value_of("input").unwrap().trim_start_matches(".\\");
 
         // Setup the vec for the compiled Instructions
         let compiled_text: Vec<Instruction>;
@@ -400,7 +424,6 @@ pub fn main() -> terminal::error::Result<()> {
             } else {
                 compiled_text = compile_result.unwrap();
             }
-            
         } else if file_path.ends_with(COMPILED) {
             // If it's already compiled, load it
             let raw_binary = load_file(file_path).unwrap();
@@ -490,7 +513,7 @@ pub fn main() -> terminal::error::Result<()> {
             loop {
                 if simulator.debug == true {
                     print_debug_screen(&mut simulator)?;
-                    thread::sleep(time::Duration::from_millis(500));
+                    thread::sleep(time::Duration::from_millis(250));
                 }
                 // Attempt to run a step in the simulator
                 let result = &simulator.step();
@@ -514,6 +537,13 @@ pub fn main() -> terminal::error::Result<()> {
                         // If not, raise that error!
                         terminal.act(Action::ClearTerminal(Clear::All))?;
                         raise_runtime_error(&simulator, &result_err);
+                        let exit_code = &result_err.clone().as_code();
+
+                        // Move the terminal prompt to the bottom of the screen
+                        for _ in 0..16 {
+                            println!("\n");
+                        }
+                        exit(exit_code.clone());
                     }
                 }
             }

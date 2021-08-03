@@ -1,0 +1,17 @@
+00  setn r15 100      # initialize stack pointer
+01  read r1           # read n into r1
+02  calln r14 5       # call recursive powerOfTwo function
+03  write r13         # write result (1=True, 0=False)
+04  jumpn 1           # repeat
+05  setn r2 2         # start of recursive powerOfTwo
+06  mod r3 r1 r2      # base case n odd: set r3=n%2
+07  jeqzn r3 10       # if n%2=0, jump
+08  setn r13 0        # n is odd so load false into r13
+09  jumpr r14         # return
+10  sub r3 r1 r2      # base case n=2: set r3=n-2
+11  jgtzn r3 15       # if n-2>0, jump
+12  setn r13 1        # n=2 so load true into r13
+13  jumpr r14         # return
+14  nop
+15 div r1 r1 r2       # divide by 2
+16 jumpn 5            # jump to compute PowerOfTwo on n/2

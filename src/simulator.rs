@@ -553,7 +553,7 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RuntimeErr {
     InvalidRegisterLocation,
     MemoryLocationNotData,
@@ -566,6 +566,7 @@ pub enum RuntimeErr {
     InstructionIsData,
     InvalidInstructionType,
     DivideByZero,
+    RegisterOutOfBounds,
 }
 
 impl RuntimeErr {
@@ -582,6 +583,7 @@ impl RuntimeErr {
             RuntimeErr::InstructionIsData => 108,
             RuntimeErr::InvalidInstructionType => 109,
             RuntimeErr::DivideByZero => 110,
+            RuntimeErr::RegisterOutOfBounds => 111,
         }
     }
 }
@@ -788,10 +790,7 @@ impl Simulator {
             "write" => {
                 if self.debug == true {
                     let w = terminal::stdout();
-                    w.act(Action::MoveCursorTo(50, 3)).unwrap();
-                    let to_print = format!("{}", "HMMM OUT:".on_green().black());
-                    print!("{}", to_print);
-                    w.act(Action::MoveCursorTo(50, 4)).unwrap();
+                    w.act(Action::MoveCursorTo(50, 8)).unwrap();
                     let to_print = format!("{:<10}", reg_x_data);
                     print!("{}", to_print);
                 } else {
@@ -945,6 +944,10 @@ impl Simulator {
                     "mod" => reg_y_data % reg_z_data,
                     _ => 0,
                 };
+
+                if result > 255 || result < -128 {
+                    return Err(RuntimeErr::RegisterOutOfBounds);
+                }
 
                 return self.write_rg(reg_x, result);
             }
