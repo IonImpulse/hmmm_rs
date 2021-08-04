@@ -4,169 +4,197 @@ use std::io;
 use std::io::stdin;
 use std::io::BufRead;
 use terminal::*;
+
 lazy_static! {
     static ref INSTRUCTION_LOOKUP: Vec<InstructionType> = vec![
         InstructionType::new(
             vec!["halt"],
             "0000 0000 0000 0000",
             "1111 1111 1111 1111",
-            ""
+            "",
+            "Halts the program"
         ),
         InstructionType::new(
             vec!["read"],
             "0000 0000 0000 0001",
             "1111 0000 1111 1111",
-            "r"
+            "r",
+            "Place 16-bit integer in register _",
         ),
         InstructionType::new(
             vec!["write"],
             "0000 0000 0000 0010",
             "1111 0000 1111 1111",
-            "r"
+            "r",
+            "Print contents of register _"
         ),
         InstructionType::new(
             vec!["jumpr", "jump"],
             "0000 0000 0000 0011",
             "1111 0000 1111 1111",
-            "r"
+            "r",
+            "Set program counter to address in register _"
         ),
         InstructionType::new(
             vec!["setn"],
             "0001 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rs"
+            "rs",
+            "Set register _ equal to integer _"
         ),
         InstructionType::new(
             vec!["loadn"],
             "0010 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "Load register _ with contents of memory address _"
         ),
         InstructionType::new(
             vec!["storen"],
             "0011 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "Place contents of register _ into memory address _"
         ),
         InstructionType::new(
-            vec!["loadr"],
+            vec!["loadr", "loadi", "load"],
             "0100 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rr"
+            "rr",
+            "Load register _ with memory data indexed by register _"
         ),
         InstructionType::new(
-            vec!["storer"],
+            vec!["storer", "storei", "store"],
             "0100 0000 0000 0001",
             "1111 0000 0000 0000",
-            "rr"
+            "rr",
+            "Store register _ in memory indexed by register _"
         ),
         InstructionType::new(
             vec!["popr"],
             "0100 0000 0000 0010",
             "1111 0000 0000 1111",
-            "rr"
+            "rr",
+            "Subtract 1 from the indexing register, then loadr"
         ),
         InstructionType::new(
             vec!["pushr"],
             "0100 0000 0000 0011",
             "1111 0000 0000 1111",
-            "rr"
+            "rr",
+            "storer, then add 1 to the indexing register"
         ),
         InstructionType::new(
             vec!["addn"],
             "0101 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rs"
+            "rs",
+            "Take register _ and add _ to it"
         ),
         InstructionType::new(
             vec!["nop"],
             "0110 0000 0000 0000",
             "1111 1111 1111 1111",
-            ""
+            "",
+            "Do nothing"
         ),
         InstructionType::new(
             vec!["copy", "mov"],
             "0110 0000 0000 0000",
             "1111 0000 0000 1111",
-            "rr"
+            "rr",
+            "Set register _ = register _"
         ),
         InstructionType::new(
             vec!["add"],
             "0110 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rrr"
+            "rrr",
+            "Set register _ = register _ + register _"
         ),
         InstructionType::new(
             vec!["neg"],
             "0111 0000 0000 0000",
             "1111 0000 1111 0000",
-            "rzr"
+            "rzr",
+            "Set register _ = - register _"
         ),
         InstructionType::new(
             vec!["sub"],
             "0111 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rrr"
+            "rrr",
+            "Set register _ = register _ - register _"
         ),
         InstructionType::new(
             vec!["mul"],
             "1000 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rrr"
+            "rrr",
+            "Set register _ = register _ * register _"
         ),
         InstructionType::new(
             vec!["div"],
             "1001 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rrr"
+            "rrr",
+            "Set register _ = register _ // register _ (int. division)"
         ),
         InstructionType::new(
             vec!["mod"],
             "1010 0000 0000 0000",
             "1111 0000 0000 0000",
-            "rrr"
+            "rrr",
+            "Set register _ = register _ % register _ (remainder of div.)"
         ),
         InstructionType::new(
             vec!["jumpn"],
             "1011 0000 0000 0000",
             "1111 1111 0000 0000",
-            "zu"
+            "zu",
+            "Set program counter to address _"
         ),
         InstructionType::new(
             vec!["calln", "call"],
             "1011 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "Copy address of next instruction into register _, and jump to address _"
         ),
         InstructionType::new(
             vec!["jeqzn", "jeqz"],
             "1100 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "If register _ == 0, jump to line _"
         ),
         InstructionType::new(
             vec!["jnezn", "jnez"],
             "1101 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "If register _ != 0, jump to line _"
         ),
         InstructionType::new(
             vec!["jgtzn", "jgtz"],
             "1110 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "If register _ > 0, jump to line _"
         ),
         InstructionType::new(
             vec!["jltzn", "jltz"],
             "1111 0000 0000 0000",
             "1111 0000 0000 0000",
-            "ru"
+            "ru",
+            "If register _ < 0, jump to line _"
         ),
         InstructionType::new(
             vec!["data"],
             "0000 0000 0000 0000",
             "0000 0000 0000 0000",
-            "n"
+            "n",
+            "ERROR: DATA _"
         ),
     ]
     .into_iter()
@@ -199,6 +227,10 @@ pub struct InstructionType {
     ///
     /// "z" : Skip 4 bits of 0s
     pub arguments: &'static str,
+    /// String that briefly describes the instruction
+    /// in a human-readable format, with "_" signifying
+    /// where an argument can be inserted
+    pub human_explanation: &'static str,
 }
 
 impl InstructionType {
@@ -207,12 +239,14 @@ impl InstructionType {
         match_string: &'static str,
         mask_string: &'static str,
         arguments: &'static str,
+        human_explanation: &'static str,
     ) -> InstructionType {
         InstructionType {
             names: names,
             match_string: match_string,
             mask_string: mask_string,
             arguments: arguments,
+            human_explanation: human_explanation,
         }
     }
 }
@@ -289,7 +323,7 @@ impl Instruction {
             // If it's a single command, just return it
             return Ok(Instruction {
                 instruction_type: instruction_type.clone(),
-                text_contents: String::from(instruction_type.clone().names[0]),
+                text_contents: String::from(""),
                 binary_contents: instruction_type
                     .clone()
                     .match_string
@@ -489,16 +523,13 @@ impl Instruction {
                 ));
                 slots_filled += 2;
             } else if arg_type == 'n' {
-                let combined_binary = format!(
-                    "{}{}",
-                    binary_contents[slots_filled],
-                    binary_contents[slots_filled + 1]
-                );
+                let combined_binary = binary_contents.join("");
+
                 instruction_args.push(format!(
                     "{}",
                     i32::from_str_radix(combined_binary.as_str(), 2).unwrap()
                 ));
-                slots_filled += 3;
+                slots_filled += 4;
             }
         }
         if instruction_args.len() > 0 {
@@ -524,6 +555,7 @@ impl Instruction {
                 "0000 0000 0000 0000",
                 "0000 0000 0000 0000",
                 "n",
+                "Data"
             ),
             binary_contents: vec![
                 "0000".to_string(),
@@ -748,17 +780,17 @@ impl Simulator {
             "read" => loop {
                 let mut line = String::new();
                 if self.debug == true {
-                    let mut w = terminal::stdout();
-                    w.act(Action::ShowCursor);
-                    w.act(Action::EnableBlinking);
-                    w.act(Action::MoveCursorTo(0, 29)).unwrap();
+                    let w = terminal::stdout();
+                    let _ = w.act(Action::ShowCursor);
+                    let _ = w.act(Action::EnableBlinking);
+                    let _ = w.act(Action::MoveCursorTo(0, 29)).unwrap();
                     print!("{}", "Enter number:".on_yellow().black());
-                    w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
                     print!("                                 ");
-                    w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
                     stdin().lock().read_line(&mut line).unwrap();
-                    w.act(Action::DisableBlinking);
-                    w.act(Action::HideCursor);
+                    let _ = w.act(Action::DisableBlinking);
+                    let _ = w.act(Action::HideCursor);
                 } else {
                     println!("{}", "Enter number:".on_yellow().black());
                     io::stdin().read_line(&mut line).unwrap();
@@ -935,21 +967,23 @@ impl Simulator {
                 if reg_z_data == 0 && instruction_name == "div" {
                     return Err(RuntimeErr::DivideByZero);
                 }
-
-                let result: i16 = match instruction_name {
-                    "add" => reg_y_data + reg_z_data,
-                    "sub" => reg_y_data - reg_z_data,
-                    "mul" => reg_y_data * reg_z_data,
-                    "div" => reg_y_data / reg_z_data,
-                    "mod" => reg_y_data % reg_z_data,
+                
+                // Coerce to a higher level data type
+                // so that we can detect an out of bounds error
+                let result: i32 = match instruction_name {
+                    "add" => reg_y_data as i32 + reg_z_data as i32,
+                    "sub" => reg_y_data as i32 - reg_z_data as i32,
+                    "mul" => reg_y_data as i32 * reg_z_data as i32,
+                    "div" => reg_y_data as i32 / reg_z_data as i32,
+                    "mod" => reg_y_data as i32 % reg_z_data as i32,
                     _ => 0,
                 };
 
-                if result > 255 || result < -128 {
+                if result > 32767 || result < -32768 {
                     return Err(RuntimeErr::RegisterOutOfBounds);
                 }
 
-                return self.write_rg(reg_x, result);
+                return self.write_rg(reg_x, result as i16);
             }
             "jumpr" => {
                 if reg_x_data < 0 {
@@ -1004,7 +1038,7 @@ impl Simulator {
 
                 return self.update_pc(ending_data_u8 as usize);
             }
-            _ => Err(RuntimeErr::InvalidInstructionType),
+            _ => return Err(RuntimeErr::InvalidInstructionType),
         };
 
         return result;
@@ -1039,7 +1073,7 @@ impl Simulator {
     }
 }
 
-fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
+pub fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
     let is_negative: bool = { binary.starts_with("1") };
     let mut binary_mut: String = binary.to_owned();
     if is_negative {
@@ -1076,7 +1110,7 @@ fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
     }
 }
 
-fn split_binary_to_chunks(text: String) -> String {
+pub fn split_binary_to_chunks(text: String) -> String {
     text.chars()
         .enumerate()
         .flat_map(|(i, c)| {

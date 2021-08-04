@@ -66,7 +66,7 @@ pub fn raise_compile_error(
 /// the program gracefully
 pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     // Easy way to display information: show the debug screen!
-    print_debug_screen(&sim);
+    let _debug_result = print_debug_screen(&sim);
     let current_line = sim.get_program_counter();
 
     let w = terminal::stdout();
@@ -186,7 +186,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     }
 
     // Line by line printing done, now to print out program counter,
-    // IR, and HMMM output.
+    // IR, human-readable output, and HMMM output.
 
     // Print program counter
     w.act(Action::MoveCursorTo(50, 1)).unwrap();
@@ -213,6 +213,56 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             )
         );
         print!("{}", to_print);
+
+        // Print human-readable output
+        w.act(Action::MoveCursorTo(75, 1)).unwrap();
+        let to_print = format!("{}", " HUMAN-READABLE CODE: ".on_green().white().bold());
+        print!("{}", to_print);
+
+        w.act(Action::MoveCursorTo(75, 2)).unwrap();
+
+        let mut to_print = String::from(memory_ir.instruction_type.human_explanation);
+
+        for (i, c) in memory_ir.instruction_type.arguments.chars().enumerate() {
+            let result: String = match c {
+                'r' => {
+                    format!("{}",u8::from_str_radix(memory_ir.binary_contents[i + 1].as_str(), 2).unwrap())
+                },
+                's' => {
+                    let converted = signed_binary_conversion(
+                        memory_ir.binary_contents[i+1..i+3].join("").as_str(),
+                    ).unwrap();
+
+                    format!("{}", converted)
+                },
+                'u' => {
+                    let converted = u8::from_str_radix(memory_ir.binary_contents[i+1..i+3].join("").as_str(), 2).unwrap();
+                    format!("{}", converted)
+                },
+                'n' => {
+                    let converted = i32::from_str_radix(memory_ir.binary_contents.join("").as_str(), 2).unwrap();
+                    format!("{}", converted)
+                },
+                _ => String::from(""),
+            };
+            
+            if result != "" {
+                to_print = to_print.replacen("_", result.as_str(), 1);
+            }
+
+
+        }
+        
+        if to_print.len() > 45 {
+            print!("{:<45}", to_print.drain(..40).collect::<String>().trim().bold());
+            w.act(Action::MoveCursorTo(75, 3)).unwrap();
+            print!("{:<45}", to_print.trim().bold());
+        } else {
+            print!("{:<45}", to_print.bold());
+            w.act(Action::MoveCursorTo(75, 3)).unwrap();
+            print!("{:<45}", "");
+        }
+
     }
 
     // Print HMMM output
@@ -220,6 +270,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let to_print = format!("{}", " HMMM OUT: ".on_green().white().bold());
     print!("{}", to_print);
 
+    
     w.flush()?;
 
     Ok(())
@@ -362,6 +413,11 @@ pub fn main() -> terminal::error::Result<()> {
                  .long("no-run")
                  .takes_value(false)
                  .help("Do not simulate (run) the program on compilation"))
+        .arg(Arg::with_name("speed")
+                 .short("s")
+                 .long("speed")
+                 .takes_value(true)
+                 .help("Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)"))
         .get_matches();
 
     if matches.value_of("input").is_none() {
@@ -501,10 +557,12 @@ pub fn main() -> terminal::error::Result<()> {
         if !matches.is_present("no-run") {
             // Create it as new struct from compiled HMMM
             let mut simulator = Simulator::new(compiled_text);
+            let debug_multiplier = matches.value_of("speed").unwrap_or("1").parse::<f64>().unwrap_or(1.0);
+
             if matches.is_present("debug") {
                 println!("{}", "ENTERING DEBUGGING MODE...".on_red());
                 simulator.debug = true;
-                thread::sleep(time::Duration::from_millis(1000));
+                thread::sleep(time::Duration::from_millis((1000. / debug_multiplier) as u64));
                 terminal.act(Action::ClearTerminal(Clear::All))?;
                 terminal.act(Action::DisableBlinking)?;
                 terminal.act(Action::HideCursor)?;
@@ -513,7 +571,7 @@ pub fn main() -> terminal::error::Result<()> {
             loop {
                 if simulator.debug == true {
                     print_debug_screen(&mut simulator)?;
-                    thread::sleep(time::Duration::from_millis(250));
+                    thread::sleep(time::Duration::from_millis((500. / debug_multiplier) as u64));
                 }
                 // Attempt to run a step in the simulator
                 let result = &simulator.step();
