@@ -29,6 +29,7 @@ FLAGS:
 OPTIONS:
     -i, --input <input>      Input .hmmm or .hb file
     -o, --output <output>    Output location of either .hmmm or .hb file
+    -s, --speed <speed>      Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)
 ```
 
 Just run a .hmmm file: `.\hmmm_rs -i tests\test.hmmm`
