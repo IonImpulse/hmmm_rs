@@ -548,23 +548,27 @@ impl Instruction {
         })
     }
 
-    pub fn new_data() -> Self {
+    pub fn new_data(data: &str) -> Self {
         Instruction {
             instruction_type: InstructionType::new(
                 vec!["data"],
                 "0000 0000 0000 0000",
                 "0000 0000 0000 0000",
                 "n",
-                "Data"
+                "Data",
             ),
             binary_contents: vec![
-                "0000".to_string(),
-                "0000".to_string(),
-                "0000".to_string(),
-                "0000".to_string(),
+                data[0..4].to_string(),
+                data[4..8].to_string(),
+                data[8..12].to_string(),
+                data[12..16].to_string(),
             ],
-            text_contents: "data".to_string(),
+            text_contents: "".to_string(),
         }
+    }
+
+    pub fn new_blank_data() -> Self {
+        Instruction::new_data("0000000000000000")
     }
 
     pub fn as_hex(self) -> String {
@@ -634,7 +638,7 @@ impl Simulator {
     pub fn new(compiled_text: Vec<Instruction>) -> Self {
         let data_left = 256 - compiled_text.len();
         let mut memory: Vec<Instruction> = compiled_text;
-        let data = Instruction::new_data();
+        let data = Instruction::new_blank_data();
 
         for _ in 0..data_left {
             memory.push(data.clone());
@@ -675,23 +679,20 @@ impl Simulator {
     }
 
     pub fn write_mem(&mut self, memory: u8, data: i16) -> Result<(), RuntimeErr> {
-        let data_binary = split_binary_to_chunks(format!("0000{:016b}", data));
-        let data = Instruction::new_from_binary(data_binary.as_str());
-        if data.is_err() {
-            return Err(RuntimeErr::InvalidData);
-        } else {
-            self.memory[memory as usize] = data.unwrap();
-            Ok(())
-        }
+        let data_binary = format!("{:016b}", data);
+
+        let data = Instruction::new_data(data_binary.as_str());
+
+        self.memory[memory as usize] = data;
+        Ok(())
     }
 
     pub fn read_mem(&mut self, memory: u8) -> Result<i16, RuntimeErr> {
         let data = self.memory[memory as usize].clone();
-
         if data.instruction_type.names[0] != "data" {
             return Err(RuntimeErr::MemoryLocationNotData);
         } else {
-            let binary = data.binary_contents[1..].join("");
+            let binary = data.binary_contents.join("");
             let num = i16::from_str_radix(binary.as_str(), 2);
 
             if num.is_err() {
@@ -842,7 +843,19 @@ impl Simulator {
                 return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
             }
             "loadr" => {
-                let data = self.read_mem(reg_y);
+                let index = self.read_rg(reg_y);
+
+                if index.is_err() {
+                    return Err(index.unwrap_err());
+                }
+
+                let index = index.unwrap();
+
+                if index > 255 || index < 0 {
+                    return Err(RuntimeErr::InvalidMemoryLocation);
+                }
+
+                let data = self.read_mem(index as u8);
 
                 if data.is_err() {
                     return Err(data.unwrap_err());
@@ -851,7 +864,18 @@ impl Simulator {
                 return self.write_rg(reg_x, data.unwrap());
             }
             "storer" => {
-                return self.write_mem(reg_y, reg_x_data);
+                let index = self.read_rg(reg_y);
+                if index.is_err() {
+                    return Err(index.unwrap_err());
+                }
+
+                let index = index.unwrap();
+
+                if index > 255 || index < 0 {
+                    return Err(RuntimeErr::InvalidMemoryLocation);
+                }
+
+                return self.write_mem(index as u8, reg_x_data);
             }
             "popr" => {
                 let reg_y_data = self.read_rg(reg_y);
@@ -967,7 +991,6 @@ impl Simulator {
                 if reg_z_data == 0 && instruction_name == "div" {
                     return Err(RuntimeErr::DivideByZero);
                 }
-                
                 // Coerce to a higher level data type
                 // so that we can detect an out of bounds error
                 let result: i32 = match instruction_name {

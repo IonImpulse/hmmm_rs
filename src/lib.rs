@@ -160,7 +160,12 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
                 instruction_text = current_instruction.as_hex().on_green();
             } else {
                 if current_instruction.instruction_type.names[0] == "data" {
-                    instruction_text = current_instruction.as_hex().on_black();
+                    if current_instruction.binary_contents == vec!["0000","0000","0000","0000"] {
+                        instruction_text = current_instruction.as_hex().on_black();
+                    } else {
+                        instruction_text = current_instruction.as_hex().on_yellow().black();
+                    }
+
                 } else {
                     instruction_text = current_instruction.as_hex().on_purple();
                 }
