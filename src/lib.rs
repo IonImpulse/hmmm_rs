@@ -11,6 +11,10 @@ use terminal::*;
 pub mod simulator;
 use simulator::*;
 
+// File extension for HMMM files
+// "Compiled" is really just a 1-to-1 mapping of the
+// original file to binary, but it's more compact and
+// does not support comments
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
 
@@ -53,7 +57,11 @@ pub fn raise_compile_error(
         error,
     );
 
-    println!("{} \"{}\"\n", " RAW TEXT:".on_red().white().bold(), raw_line.white(),);
+    println!(
+        "{} \"{}\"\n",
+        " RAW TEXT:".on_red().white().bold(),
+        raw_line.white(),
+    );
     println!("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("█           Interpreted As: ");
     println!("█ Line █ Command █ Arguments ");
@@ -160,12 +168,11 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
                 instruction_text = current_instruction.as_hex().on_green();
             } else {
                 if current_instruction.instruction_type.names[0] == "data" {
-                    if current_instruction.binary_contents == vec!["0000","0000","0000","0000"] {
+                    if current_instruction.binary_contents == vec!["0000", "0000", "0000", "0000"] {
                         instruction_text = current_instruction.as_hex().on_black();
                     } else {
                         instruction_text = current_instruction.as_hex().on_yellow().black();
                     }
-
                 } else {
                     instruction_text = current_instruction.as_hex().on_purple();
                 }
@@ -231,35 +238,44 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
         for (i, c) in memory_ir.instruction_type.arguments.chars().enumerate() {
             let result: String = match c {
                 'r' => {
-                    format!("{}",u8::from_str_radix(memory_ir.binary_contents[i + 1].as_str(), 2).unwrap())
-                },
+                    format!(
+                        "{}",
+                        u8::from_str_radix(memory_ir.binary_contents[i + 1].as_str(), 2).unwrap()
+                    )
+                }
                 's' => {
                     let converted = signed_binary_conversion(
-                        memory_ir.binary_contents[i+1..i+3].join("").as_str(),
-                    ).unwrap();
+                        memory_ir.binary_contents[i + 1..i + 3].join("").as_str(),
+                    )
+                    .unwrap();
 
                     format!("{}", converted)
-                },
+                }
                 'u' => {
-                    let converted = u8::from_str_radix(memory_ir.binary_contents[i+1..i+3].join("").as_str(), 2).unwrap();
+                    let converted = u8::from_str_radix(
+                        memory_ir.binary_contents[i + 1..i + 3].join("").as_str(),
+                        2,
+                    )
+                    .unwrap();
                     format!("{}", converted)
-                },
+                }
                 'n' => {
-                    let converted = i32::from_str_radix(memory_ir.binary_contents.join("").as_str(), 2).unwrap();
+                    let converted =
+                        i32::from_str_radix(memory_ir.binary_contents.join("").as_str(), 2)
+                            .unwrap();
                     format!("{}", converted)
-                },
+                }
                 _ => String::from(""),
             };
-            
             if result != "" {
                 to_print = to_print.replacen("_", result.as_str(), 1);
             }
-
-
         }
-        
         if to_print.len() > 45 {
-            print!("{:<45}", to_print.drain(..40).collect::<String>().trim().bold());
+            print!(
+                "{:<45}",
+                to_print.drain(..40).collect::<String>().trim().bold()
+            );
             w.act(Action::MoveCursorTo(75, 3)).unwrap();
             print!("{:<45}", to_print.trim().bold());
         } else {
@@ -267,7 +283,6 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             w.act(Action::MoveCursorTo(75, 3)).unwrap();
             print!("{:<45}", "");
         }
-
     }
 
     // Print HMMM output
@@ -275,7 +290,6 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let to_print = format!("{}", " HMMM OUT: ".on_green().white().bold());
     print!("{}", to_print);
 
-    
     w.flush()?;
 
     Ok(())
@@ -562,31 +576,44 @@ pub fn main() -> terminal::error::Result<()> {
         if !matches.is_present("no-run") {
             // Create it as new struct from compiled HMMM
             let mut simulator = Simulator::new(compiled_text);
-            let debug_multiplier = matches.value_of("speed").unwrap_or("1").parse::<f64>().unwrap_or(1.0);
+            let debug_multiplier = matches
+                .value_of("speed")
+                .unwrap_or("1")
+                .parse::<f64>()
+                .unwrap_or(1.0);
 
             if matches.is_present("debug") {
                 println!("{}", "ENTERING DEBUGGING MODE...".on_red());
-                simulator.debug = true;
-                thread::sleep(time::Duration::from_millis((1000. / debug_multiplier) as u64));
+                simulator.set_debug(true);
+                thread::sleep(time::Duration::from_millis(
+                    (1000. / debug_multiplier) as u64,
+                ));
                 terminal.act(Action::ClearTerminal(Clear::All))?;
                 terminal.act(Action::DisableBlinking)?;
                 terminal.act(Action::HideCursor)?;
             }
 
             loop {
-                if simulator.debug == true {
+                if simulator.is_debug() {
                     print_debug_screen(&mut simulator)?;
-                    thread::sleep(time::Duration::from_millis((500. / debug_multiplier) as u64));
+                    thread::sleep(time::Duration::from_millis(
+                        (500. / debug_multiplier) as u64,
+                    ));
                 }
                 // Attempt to run a step in the simulator
                 let result = &simulator.step();
                 // If it's an error, raise it
                 if result.is_err() {
+                    // Don't trap the user without a cursor,
+                    // make sure to show it on exit
+                    // Hopefully the program doesn't hard crash because if it does,
+                    // the cursor might not be visible
+                    terminal.act(Action::ShowCursor)?;
                     let result_err = result.as_ref().unwrap_err();
                     // If the error is Halt, exit quietly, as that is the
                     // program successfully finishing
                     if result_err == &RuntimeErr::Halt {
-                        if simulator.debug == true {
+                        if simulator.is_debug() {
                             terminal.act(Action::MoveCursorTo(0, 31))?;
                         }
 
@@ -599,8 +626,9 @@ pub fn main() -> terminal::error::Result<()> {
                     } else {
                         // If not, raise that error!
                         terminal.act(Action::ClearTerminal(Clear::All))?;
+                        // Prints out the debug screen as well as the the error
                         raise_runtime_error(&simulator, &result_err);
-                        let exit_code = &result_err.clone().as_code();
+                        let exit_code = &result_err.as_code();
 
                         // Move the terminal prompt to the bottom of the screen
                         for _ in 0..16 {
@@ -611,7 +639,6 @@ pub fn main() -> terminal::error::Result<()> {
                 }
             }
         }
-
         Ok(())
     }
 }
