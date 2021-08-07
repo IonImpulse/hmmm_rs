@@ -75,18 +75,18 @@ RegisterOutOfBounds:      ->  110
 # Table of Instructions
 Instruction taken from official [HMMM documentation](https://www.cs.hmc.edu/~cs5grad/cs5/hmmm/documentation/documentation.html).
 
-|        Instruction            | Description                                                          |    Aliases    |
+|        ***Instruction***            | ***Description***                                                          |    ***Aliases***    |
 |:-----------------------------:|----------------------------------------------------------------------|:-------------:|
-| System instructions           |                                                                      |               |
+| **System instructions**           |                                                                      |               |
 | halt                          | Stop!                                                                | None          |
 | read rX                       | Place user input in register rX                                      | None          |
 | write rX                      | Print contents of register rX                                        | None          |
 | nop                           | Do nothing                                                           | None          |
-| Setting register data         |                                                                      |               |
+| **Setting register data**         |                                                                      |               |
 | setn rX N                     | Set register rX equal to the integer N (-128 to +127)                | None          |
 | addn rX N                     | Add integer N (-128 to 127) to register rX                           | None          |
 | copy rX rY                    | Set rX = rY                                                          | mov           |
-| Arithmetic                    |                                                                      |               |
+| **Arithmetic**                    |                                                                      |               |
 | add rX rY rZ                  | Set rX = rY + rZ                                                     | None          |
 | sub rX rY rZ                  | Set rX = rY - rZ                                                     | None          |
 | neg rX rY                     | Set rX = -rY                                                         | None          |
@@ -100,7 +100,7 @@ Instruction taken from official [HMMM documentation](https://www.cs.hmc.edu/~cs5
 | jgtzn rX N                    | If rX > 0, then jump to line N                                       | jgtz          |
 | jltzn rX N                    | If rX < 0, then jump to line N                                       | jltz          |
 | calln rX N                    | Copy addr. of next instr. into rX and then jump to mem. addr. N      | call          |
-| Interacting with memory (RAM) |                                                                      |               |
+| **Interacting with memory (RAM)** |                                                                      |               |
 | pushr rX rY                   | Store contents of register rX onto stack pointed to by reg. rY       | None          |
 | popr rX rY                    | Load contents of register rX from stack pointed to by reg. rY        | None          |
 | loadn rX N                    | Load register rX with the contents of memory address N               | None          |
