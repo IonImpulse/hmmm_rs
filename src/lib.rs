@@ -76,7 +76,7 @@ pub fn raise_compile_error(
 /// the program gracefully
 pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     // Easy way to display information: show the debug screen!
-    let _debug_result = print_debug_screen(&sim);
+    let _debug_result = print_debug_screen(sim);
     let current_line = sim.get_program_counter();
 
     let w = terminal::stdout();
@@ -113,10 +113,7 @@ pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
 pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let mut debug_screen_lines: Vec<String> = Vec::new();
 
-    debug_screen_lines.push(format!(
-        "{}",
-        "█▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀█\n",
-    ));
+    debug_screen_lines.push("█▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀█\n".to_string());
 
     debug_screen_lines.push(format!(
         "{}{}{}",
@@ -142,12 +139,8 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             &sim.get_register((row * 4) + 3).unwrap_or(0),
         ));
     }
-    debug_screen_lines.push(format!("{}", 
-        "█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n"
-    ));
-    debug_screen_lines.push(format!("{}", 
-        "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n"
-    ));
+    debug_screen_lines.push("█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n".to_string());
+    debug_screen_lines.push("█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n".to_string());
     let address_chars = vec![
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
     ];
@@ -168,16 +161,14 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             let instruction_text;
             if current_pc == &memory_index {
                 instruction_text = current_instruction.as_hex().on_green();
-            } else {
-                if current_instruction.instruction_type.names[0] == "data" {
-                    if current_instruction.binary_contents == vec!["0000", "0000", "0000", "0000"] {
-                        instruction_text = current_instruction.as_hex().on_black();
-                    } else {
-                        instruction_text = current_instruction.as_hex().on_yellow().black();
-                    }
+            } else if current_instruction.instruction_type.names[0] == "data" {
+                if current_instruction.binary_contents == vec!["0000", "0000", "0000", "0000"] {
+                    instruction_text = current_instruction.as_hex().on_black();
                 } else {
-                    instruction_text = current_instruction.as_hex().on_purple();
+                    instruction_text = current_instruction.as_hex().on_yellow().black();
                 }
+            } else {
+                instruction_text = current_instruction.as_hex().on_purple();
             }
 
             to_print = format!("{} {} █", to_print, instruction_text);
@@ -186,9 +177,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
         debug_screen_lines.push(format!("{}\n", to_print));
     }
 
-    debug_screen_lines.push(format!("{}", 
-        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
-    ));
+    debug_screen_lines.push("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n".to_string());
 
     // Create terminal object to print out the debug screen
     let mut w = terminal::stdout();
@@ -269,7 +258,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
                 }
                 _ => String::from(""),
             };
-            if result != "" {
+            if !result.is_empty() {
                 to_print = to_print.replacen("_", result.as_str(), 1);
             }
         }
@@ -402,29 +391,24 @@ pub fn main() -> terminal::error::Result<()> {
     } else {
         // Print out startup message
         println!(
-            "{}{}",
-            "██    ██  ████    ████ ".yellow(),
-            " ████    ████  ████    ████"
+            "{} ████    ████  ████    ████",
+            "██    ██  ████    ████ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██ ██  ██ ██ ".yellow(),
-            " ██ ██  ██ ██  ██ ██  ██ ██"
+            "{} ██ ██  ██ ██  ██ ██  ██ ██",
+            "██    ██  ██ ██  ██ ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "████████  ██  ████  ██ ".yellow(),
-            " ██  ████  ██  ██  ████  ██"
+            "{} ██  ████  ██  ██  ████  ██",
+            "████████  ██  ████  ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██   ██   ██ ".yellow(),
-            " ██   ██   ██  ██   ██   ██"
+            "{} ██   ██   ██  ██   ██   ██",
+            "██    ██  ██   ██   ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██        ██ ".yellow(),
-            " ██        ██  ██        ██"
+            "{} ██        ██  ██        ██",
+            "██    ██  ██        ██ ".yellow()
         );
         println!(
             "{}",
@@ -436,7 +420,7 @@ pub fn main() -> terminal::error::Result<()> {
                 .on_white()
         );
 
-        print!("\n");
+        println!();
 
         let file_path: &str = matches.value_of("input").unwrap().trim_start_matches(".\\");
 
@@ -592,14 +576,14 @@ pub fn main() -> terminal::error::Result<()> {
                         // If not, raise that error!
                         terminal.act(Action::ClearTerminal(Clear::All))?;
                         // Prints out the debug screen as well as the the error
-                        raise_runtime_error(&simulator, &result_err);
+                        raise_runtime_error(&simulator, result_err);
                         let exit_code = &result_err.as_code();
 
                         // Move the terminal prompt to the bottom of the screen
                         for _ in 0..16 {
                             println!("\n");
                         }
-                        exit(exit_code.clone());
+                        exit(*exit_code);
                     }
                 }
             }

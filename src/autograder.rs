@@ -20,12 +20,12 @@ impl TestCase {
             s = format!("{}{},", s, i);
         }
 
-        s = s.trim_end_matches(",").to_string();
+        s = s.trim_end_matches(',').to_string();
         s = format!("{}|", s);
         for i in &self.outputs {
             s = format!("{}{},", s, i);
         }
-        s = s.trim_end_matches(",").to_string();
+        s = s.trim_end_matches(',').to_string();
 
         s = format!("{};", s);
 
@@ -67,40 +67,40 @@ pub struct AutoGrader {
 impl AutoGrader {
     pub fn new_from_cmd(input_dir: &str, test_case_string: &str) -> Self {
         let mut test_cases: Vec<TestCase> = Vec::new();
-        let test_case_string = test_case_string.trim_end_matches(";");
-        if test_case_string.contains(";") {
-            for test_case in test_case_string.split(";") {
+        let test_case_string = test_case_string.trim_end_matches(';');
+        if test_case_string.contains(';') {
+            for test_case in test_case_string.split(';') {
                 let test_case_split: Vec<String> =
-                    test_case.split("|").map(|x| x.to_string()).collect();
+                    test_case.split('|').map(|x| x.to_string()).collect();
                 test_cases.push(TestCase {
                     inputs: test_case_split
                         .first()
                         .unwrap()
-                        .split(",")
+                        .split(',')
                         .map(|x| x.trim().parse::<i16>().unwrap())
                         .collect(),
                     outputs: test_case_split
                         .last()
                         .unwrap()
-                        .split(",")
+                        .split(',')
                         .map(|x| x.trim().parse::<i16>().unwrap())
                         .collect(),
                 });
             }
         } else {
             let test_case_split: Vec<String> =
-                test_case_string.split("|").map(|x| x.to_string()).collect();
+                test_case_string.split('|').map(|x| x.to_string()).collect();
             test_cases.push(TestCase {
                 inputs: test_case_split
                     .first()
                     .unwrap()
-                    .split(",")
+                    .split(',')
                     .map(|x| x.trim().parse::<i16>().unwrap())
                     .collect(),
                 outputs: test_case_split
                     .last()
                     .unwrap()
-                    .split(",")
+                    .split(',')
                     .map(|x| x.trim().parse::<i16>().unwrap())
                     .collect(),
             });
@@ -148,9 +148,9 @@ impl AutoGrader {
         }
 
         AutoGrader {
-            file_names: file_names,
-            test_cases: test_cases,
-            grade_cases: grade_cases,
+            file_names,
+            test_cases,
+            grade_cases,
             results: Vec::new(),
         }
     }
@@ -188,10 +188,10 @@ impl AutoGrader {
     pub fn grade_single(grade_case: GradeCase) -> GradeCase {
         let iterations_left = AUTOGRADER_MAX_ITERATIONS;
         let sim = grade_case.sim.clone();
-        let test_case = grade_case.get_test_case().clone().unwrap();
+        let test_case = grade_case.get_test_case().unwrap();
         // If the simulator failed on compile, just return it
         if sim.is_none() {
-            return grade_case;
+            grade_case
         } else {
             let mut sim = sim.unwrap();
             sim.set_inputs(test_case.inputs.clone());
@@ -199,23 +199,23 @@ impl AutoGrader {
             while iterations_left > 0 {
                 let step_result = sim.step();
                 if step_result.is_err() {
-                    let outputs = sim.get_outputs().clone();
+                    let outputs = sim.get_outputs();
 
                     return GradeCase {
                         sim: Some(sim),
                         test_case: Some(test_case),
-                        outputs: outputs,
+                        outputs,
                         exit_code: step_result.clone().unwrap_err().as_code(),
-                        exit_name: format!("{:?}", step_result.clone().unwrap_err()),
+                        exit_name: format!("{:?}", step_result.unwrap_err()),
                     };
                 }
             }
-            let outputs = sim.get_outputs().clone();
+            let outputs = sim.get_outputs();
 
             return GradeCase {
                 sim: Some(sim),
                 test_case: Some(test_case),
-                outputs: outputs,
+                outputs,
                 exit_code: RuntimeErr::MaximumIterationsReached.as_code(),
                 exit_name: format!("{:?}", RuntimeErr::MaximumIterationsReached),
             };
@@ -249,7 +249,7 @@ impl AutoGrader {
         println!(
             "{}", bottom_line
         );
-        print!("\n");
+        println!();
         println!("{}", top_line);
         
         for i in 0..self.results[0].len() {
@@ -260,15 +260,9 @@ impl AutoGrader {
                 .collect::<Vec<GradeCase>>();
 
             // Cases that failed with a runtime error
-            let cases_errored: Vec<&GradeCase> = grade_cases_all
-                .iter()
-                .filter(|x| x.exit_code != 0)
-                .collect();
+            
             // Cases that did not match expected test case
-            let cases_failed: Vec<&GradeCase> = grade_cases_all
-                .iter()
-                .filter(|x| x.exit_code == 0 && !x.test_case_matches())
-                .collect();
+            
             // Cases that passed
             let cases_passed: Vec<&GradeCase> = grade_cases_all
                 .iter()
@@ -285,8 +279,12 @@ impl AutoGrader {
             let output_string = format!(
                 "█ {:45} █ {:13} █ {:12} █ {:12} █ {}  {:6} █",
                 self.file_names[i],
-                cases_errored.len(),
-                cases_failed.len(),
+                grade_cases_all
+                .iter()
+                .filter(|x| x.exit_code != 0).count(),
+                grade_cases_all
+                .iter()
+                .filter(|x| x.exit_code == 0 && !x.test_case_matches()).count(),
                 cases_passed.len(),
                 pass_fail_emoji,
                 format!("{}/{}",

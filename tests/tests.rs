@@ -1,4 +1,4 @@
-use hmmm_rs;
+
 use hmmm_rs::{load_file, write_compiled_hmmm, read_compiled_hmmm};
 use hmmm_rs::simulator::*;
 
@@ -20,7 +20,7 @@ fn compile_uncompile_binary_test() {
     // Get the binary contents
     let binary_1: Vec<Vec<String>> = initial_compiled_file.iter().map(|x| x.binary_contents.clone()).collect();
     // Write compiled file
-    write_compiled_hmmm("tests/test.hb", initial_compiled_file.clone()).unwrap();
+    write_compiled_hmmm("tests/test.hb", initial_compiled_file).unwrap();
     // Load compiled file
     let compiled_file = load_file("tests/test.hb").unwrap();
     // Uncompile
@@ -47,9 +47,9 @@ fn read_write_memory() {
     // Create simulator object
     let mut sim = create_dummy_simulator();
     // Write to memory
-    sim.write_mem(100 as u8, 88 as i16).unwrap();
+    sim.write_mem(100_u8, 88_i16).unwrap();
     // Read from memory
-    assert_eq!(sim.read_mem(100).unwrap(), 88 as i16);
+    assert_eq!(sim.read_mem(100).unwrap(), 88_i16);
 }
 
 #[test]
@@ -57,9 +57,9 @@ fn read_write_register() {
     // Create simulator object
     let mut sim = create_dummy_simulator();
     // Write to register
-    sim.write_reg(5 as u8, 88 as i16).unwrap();
+    sim.write_reg(5_u8, 88_i16).unwrap();
     // Read from register
-    assert_eq!(sim.read_reg(5).unwrap(), 88 as i16);
+    assert_eq!(sim.read_reg(5).unwrap(), 88_i16);
 }
 
 #[test]
@@ -67,15 +67,15 @@ fn perform_memory_register_operation_test() {
     // Create simulator object
     let mut sim = create_dummy_simulator();
     // Write to memory & register
-    sim.write_mem(100 as u8, 88 as i16).unwrap();
-    sim.write_reg(5 as u8, 88 as i16).unwrap();
+    sim.write_mem(100_u8, 88_i16).unwrap();
+    sim.write_reg(5_u8, 88_i16).unwrap();
     // Read memory
     let mem_result = sim.read_mem(100).unwrap();
     let reg_result = sim.read_reg(5).unwrap();
     // Perform operation
     sim.write_mem(101, mem_result * reg_result).unwrap();
     // Read from memory
-    assert_eq!(sim.read_mem(101).unwrap(), 88 * 88 as i16);
+    assert_eq!(sim.read_mem(101).unwrap(), 88 * 88_i16);
 }
 
 #[test]
