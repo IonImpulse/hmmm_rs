@@ -1,12 +1,12 @@
 use hmmm_rs;
-use hmmm_rs::{write_file, load_file, compile_hmmm, write_compiled_hmmm, read_compiled_hmmm};
+use hmmm_rs::{write_file, load_file, write_compiled_hmmm, read_compiled_hmmm};
 use hmmm_rs::simulator::*;
 
 pub fn create_dummy_simulator() -> Simulator {
     // Load file
     let initial_file = load_file("tests/test.hmmm").unwrap();
     // Compile
-    let compile_result = compile_hmmm(initial_file).unwrap();
+    let compile_result = Simulator::compile_hmmm(initial_file, true).unwrap();
     // Create simulator object
     Simulator::new(compile_result)
 }
@@ -16,7 +16,7 @@ fn compile_uncompile_binary_test() {
     // Load file
     let initial_file = load_file("tests/test.hmmm").unwrap();
     // Compile
-    let initial_compiled_file = compile_hmmm(initial_file).unwrap();
+    let initial_compiled_file = Simulator::compile_hmmm(initial_file, true).unwrap();
     // Get the binary contents
     let binary_1: Vec<Vec<String>> = initial_compiled_file.iter().map(|x| x.binary_contents.clone()).collect();
     // Write compiled file
@@ -36,7 +36,7 @@ fn does_not_compile_test() {
     // Load file
     let initial_file = load_file("tests/does_not_compile.hmmm").unwrap();
     // Compile - should fail
-    let compile_result = compile_hmmm(initial_file);
+    let compile_result = Simulator::compile_hmmm(initial_file, true);
 
     assert_eq!(compile_result.unwrap_err(), CompileErr::InvalidLineNumber);
 

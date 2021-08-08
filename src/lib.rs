@@ -9,7 +9,9 @@ use std::*;
 use terminal::*;
 
 pub mod simulator;
+pub mod autograder;
 use simulator::*;
+use autograder::*;
 
 // File extension for HMMM files
 // "Compiled" is really just a 1-to-1 mapping of the
@@ -295,56 +297,6 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     Ok(())
 }
 
-/// Function to compile a vec of HMMM instructions into
-/// a Vec of Instruction structs
-pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Result<Vec<Instruction>, CompileErr> {
-    let mut line_counter = 0;
-    let mut compiled_text: Vec<Instruction> = Vec::new();
-
-    for (index, line) in uncompiled_text.iter().enumerate() {
-        if !(line.trim().starts_with("#")) && line.len() > 2 {
-            let mut line_parts: Vec<String> = line
-                .split(&[',', ' ', '\t'][..])
-                .map(|a| String::from(a))
-                .collect();
-            let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
-            let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
-
-            if comment_part.is_some() {
-                line_parts.drain(comment_part.unwrap()..);
-            }
-
-            let line_parts: Vec<String> = String::from(line_parts.join(" ").trim())
-                .split_whitespace()
-                .map(|a| String::from(a))
-                .collect();
-
-            let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
-            if line_number.is_err() {
-                raise_compile_error(index, CompileErr::LineNumberNotPresent, line, line_parts);
-                return Err(CompileErr::LineNumberNotPresent);
-            } else {
-                if line_number.unwrap() != line_counter {
-                    raise_compile_error(index, CompileErr::InvalidLineNumber, line, line_parts);
-                    return Err(CompileErr::InvalidLineNumber);
-                } else {
-                    let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
-                    if next_instruction.is_err() {
-                        let err = next_instruction.unwrap_err();
-                        raise_compile_error(index, err.clone(), line, line_parts);
-                        return Err(err);
-                    } else {
-                        compiled_text.push(next_instruction.unwrap());
-                        line_counter += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(compiled_text)
-}
-
 /// Function to read a vec of binary HMMM text into
 /// a Vec of Instruction structs
 pub fn read_compiled_hmmm(raw_binary: Vec<String>) -> Vec<Instruction> {
@@ -437,6 +389,11 @@ pub fn main() -> terminal::error::Result<()> {
                  .long("speed")
                  .takes_value(true)
                  .help("Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)"))
+        .arg(Arg::with_name("autograder")
+                 .short("a")
+                 .long("autograder")
+                 .takes_value(true)
+                 .help("Toggles the AutoGrader functionality, expecting a test string to be given. If enabled, expects a directory path instead of a file path for --input and --output. --debug, --no-run, and --speed are ignored in this mode."))         
         .get_matches();
 
     if matches.value_of("input").is_none() {
@@ -479,9 +436,17 @@ pub fn main() -> terminal::error::Result<()> {
                 .on_white()
         );
 
-        println!("\n");
+        print!("\n");
 
         let file_path: &str = matches.value_of("input").unwrap().trim_start_matches(".\\");
+
+        if matches.value_of("autograder").is_some() {
+            println!("{}\n", "AutoGrader Mode Enabled".bold().on_green());
+            let mut autograder = AutoGrader::new_from_cmd(file_path.trim_start_matches("\\").trim_end_matches("\\"), matches.value_of("autograder").unwrap());
+            autograder.grade_all();
+            autograder.print_results();
+            exit(0);
+        }
 
         // Setup the vec for the compiled Instructions
         let compiled_text: Vec<Instruction>;
@@ -492,7 +457,7 @@ pub fn main() -> terminal::error::Result<()> {
             let uncompiled_text = load_file(file_path).unwrap();
 
             // Then, compile it into Instruction structs
-            let compile_result = compile_hmmm(uncompiled_text);
+            let compile_result = Simulator::compile_hmmm(uncompiled_text, false);
 
             if compile_result.is_err() {
                 exit(compile_result.unwrap_err().as_code())

@@ -1,3 +1,4 @@
+use super::*;
 use colored::*;
 use lazy_static::lazy_static;
 use std::io;
@@ -603,6 +604,8 @@ pub enum RuntimeErr {
     InvalidInstructionType,
     DivideByZero,
     RegisterOutOfBounds,
+    MaximumIterationsReached,
+    TooManyInputs,
 }
 
 impl RuntimeErr {
@@ -620,6 +623,8 @@ impl RuntimeErr {
             RuntimeErr::InvalidInstructionType => 108,
             RuntimeErr::DivideByZero => 109,
             RuntimeErr::RegisterOutOfBounds => 110,
+            RuntimeErr::MaximumIterationsReached => 111,
+            RuntimeErr::TooManyInputs => 112,
         }
     }
 }
@@ -633,6 +638,9 @@ pub struct Simulator {
     pub just_updated_pc: bool,
     pub debug: bool,
     pub current_regs: Vec<u8>,
+    pub headless: bool,
+    pub inputs: Vec<i16>,
+    pub outputs: Vec<i16>,
 }
 
 impl Simulator {
@@ -656,8 +664,86 @@ impl Simulator {
             counter_log: Vec::new(),
             just_updated_pc: false,
             debug: false,
-            current_regs: vec![0,0,0],
+            current_regs: vec![0, 0, 0],
+            headless: false,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
         }
+    }
+
+    pub fn new_headless(compiled_text: Vec<Instruction>) -> Self {
+        let mut sim = Simulator::new(compiled_text);
+        sim.headless = true;
+        sim
+    }
+
+    /// Function to compile a vec of HMMM instructions into
+    /// a Vec of Instruction structs
+    pub fn compile_hmmm(
+        uncompiled_text: Vec<String>,
+        is_headless: bool,
+    ) -> Result<Vec<Instruction>, CompileErr> {
+        let mut line_counter = 0;
+        let mut compiled_text: Vec<Instruction> = Vec::new();
+
+        for (index, line) in uncompiled_text.iter().enumerate() {
+            if !(line.trim().starts_with("#")) && line.len() > 2 {
+                let mut line_parts: Vec<String> = line
+                    .split(&[',', ' ', '\t'][..])
+                    .map(|a| String::from(a))
+                    .collect();
+                let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
+                let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
+
+                if comment_part.is_some() {
+                    line_parts.drain(comment_part.unwrap()..);
+                }
+
+                let line_parts: Vec<String> = String::from(line_parts.join(" ").trim())
+                    .split_whitespace()
+                    .map(|a| String::from(a))
+                    .collect();
+
+                let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
+                if line_number.is_err() {
+                    if !is_headless {
+                        raise_compile_error(
+                            index,
+                            CompileErr::LineNumberNotPresent,
+                            line,
+                            line_parts,
+                        );
+                    }
+                    return Err(CompileErr::LineNumberNotPresent);
+                } else {
+                    if line_number.unwrap() != line_counter {
+                        if !is_headless {
+                            raise_compile_error(
+                                index,
+                                CompileErr::InvalidLineNumber,
+                                line,
+                                line_parts,
+                            );
+                        }
+                        return Err(CompileErr::InvalidLineNumber);
+                    } else {
+                        let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
+                        if next_instruction.is_err() {
+                            let err = next_instruction.unwrap_err();
+                            if !is_headless {
+                                raise_compile_error(index, err.clone(), line, line_parts);
+                            }
+                            return Err(err);
+                        } else {
+                            compiled_text.push(next_instruction.unwrap());
+                            line_counter += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(compiled_text)
     }
 
     pub fn write_reg(&mut self, register: u8, data: i16) -> Result<(), RuntimeErr> {
@@ -727,6 +813,35 @@ impl Simulator {
     pub fn is_debug(&self) -> bool {
         self.debug
     }
+
+    // Get headless state
+    pub fn is_headless(&self) -> bool {
+        self.headless
+    }
+
+    // Add to output
+    pub fn add_output(&mut self, output: i16) {
+        self.outputs.push(output);
+    }
+
+    // Set inputs
+    pub fn set_inputs(&mut self, inputs: Vec<i16>) {
+        self.inputs = inputs;
+    }
+
+    // Get the next input, and pop it
+    pub fn get_next_input(&mut self) -> Option<i16> {
+        if self.inputs.is_empty() {
+            return None;
+        }
+        Some(self.inputs.remove(0))
+    }
+
+    // Return output vec
+    pub fn get_outputs(&mut self) -> Vec<i16> {
+        self.outputs.clone()
+    }
+
     /// Function to both execute instruction on program counter
     /// and increment program counter
     pub fn step(&mut self) -> Result<(), RuntimeErr> {
@@ -761,9 +876,10 @@ impl Simulator {
         // Clone the current program counter for use in instructions
         let pc = self.get_program_counter();
 
-        if pc > 255 || pc < 0 {
+        if pc > 255 {
             return Err(RuntimeErr::InvalidProgramCounter);
         }
+
         // Make sure to rest just_updated_pc to false
         self.just_updated_pc = false;
         // Clone the current instruction from memory
@@ -800,7 +916,6 @@ impl Simulator {
             _ => Err(RuntimeErr::InvalidInstructionType),
         };
 
-        println!("{}", instruction_name);
         return result;
     }
 
@@ -849,7 +964,11 @@ impl Simulator {
         let instruction_to_run = self.get_memory(self.get_program_counter()).unwrap();
 
         return signed_binary_conversion(
-            self.get_memory(self.get_program_counter()).unwrap().binary_contents[2..].join("").as_str(),
+            self.get_memory(self.get_program_counter())
+                .unwrap()
+                .binary_contents[2..]
+                .join("")
+                .as_str(),
         );
     }
 
@@ -868,59 +987,73 @@ impl Simulator {
     }
 
     pub fn perform_read(&mut self) -> Result<(), RuntimeErr> {
-        loop {
-            let mut line = String::new();
-            if self.is_debug() {
-                let w = terminal::stdout();
-                let _ = w.act(Action::ShowCursor);
-                let _ = w.act(Action::EnableBlinking);
-                let _ = w.act(Action::MoveCursorTo(0, 29)).unwrap();
-                print!("{}", "Enter number:".on_yellow().black());
-                let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
-                print!("                                 ");
-                let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
-                stdin().lock().read_line(&mut line).unwrap();
-                let _ = w.act(Action::DisableBlinking);
-                let _ = w.act(Action::HideCursor);
+        if self.is_headless() {
+            let next_number = self.get_next_input();
+            if next_number.is_none() {
+                return Err(RuntimeErr::TooManyInputs);
             } else {
-                println!("{}", "Enter number:".on_yellow().black());
-                io::stdin().read_line(&mut line).unwrap();
+                return self.write_reg(self.current_regs[0], next_number.unwrap());
             }
-
-            line = line.trim().to_string();
-            if line == "q" {
-                return Err(RuntimeErr::Halt);
-            }
-
-            let number = line.parse::<i16>();
-
-            if number.is_ok() {
+        } else {
+            loop {
+                let mut line = String::new();
+                if self.is_debug() {
+                    let w = terminal::stdout();
+                    let _ = w.act(Action::ShowCursor);
+                    let _ = w.act(Action::EnableBlinking);
+                    let _ = w.act(Action::MoveCursorTo(0, 29)).unwrap();
+                    print!("{}", "Enter number:".on_yellow().black());
+                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    print!("                                 ");
+                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    stdin().lock().read_line(&mut line).unwrap();
+                    let _ = w.act(Action::DisableBlinking);
+                    let _ = w.act(Action::HideCursor);
+                } else {
+                    println!("{}", "Enter number:".on_yellow().black());
+                    io::stdin().read_line(&mut line).unwrap();
+                }
+                line = line.trim().to_string();
+                if line == "q" {
+                    return Err(RuntimeErr::Halt);
+                }
+                let number = line.parse::<i16>();
+                if number.is_ok() {
+                    if self.is_debug() {
+                        let w = terminal::stdout();
+                        w.act(Action::MoveCursorTo(16, 29)).unwrap();
+                        print!("                                        ");
+                    }
+                    return self.write_reg(self.current_regs[0], number.unwrap());
+                }
                 if self.is_debug() {
                     let w = terminal::stdout();
                     w.act(Action::MoveCursorTo(16, 29)).unwrap();
-                    print!("                                        ");
+                    print!("Invalid number! Please try again...");
+                } else {
+                    println!("Invalid number! Please try again...");
                 }
-                return self.write_reg(self.current_regs[0], number.unwrap());
-            }
-
-            if self.is_debug() {
-                let w = terminal::stdout();
-                w.act(Action::MoveCursorTo(16, 29)).unwrap();
-                print!("Invalid number! Please try again...");
-            } else {
-                println!("Invalid number! Please try again...");
             }
         }
     }
 
     pub fn perform_write(&mut self) -> Result<(), RuntimeErr> {
-        if self.debug == true {
-            let w = terminal::stdout();
-            w.act(Action::MoveCursorTo(50, 8)).unwrap();
-            let to_print = format!("{:<10}", self.read_reg(self.current_regs[0])?);
-            print!("{}", to_print);
+        if self.is_headless() {
+            let read_num = self.read_reg(self.current_regs[0])?;
+            self.add_output(read_num);
         } else {
-            println!("{}\n{}", "HMMM OUT:".on_green().black(), self.read_reg(self.current_regs[0])?);
+            if self.is_debug() {
+                let w = terminal::stdout();
+                w.act(Action::MoveCursorTo(50, 8)).unwrap();
+                let to_print = format!("{:<10}", self.read_reg(self.current_regs[0])?);
+                print!("{}", to_print);
+            } else {
+                println!(
+                    "{}\n{}",
+                    "HMMM OUT:".on_green().black(),
+                    self.read_reg(self.current_regs[0])?
+                );
+            }
         }
         return Ok(());
     }
@@ -1010,7 +1143,6 @@ impl Simulator {
 
     pub fn perform_storen(&mut self) -> Result<(), RuntimeErr> {
         let ending_data = self.get_ending_data()?;
-        
         let reg_x_data = self.read_reg(self.current_regs[0])?;
 
         return self.write_mem(ending_data as u8, reg_x_data);
@@ -1020,8 +1152,8 @@ impl Simulator {
         let ending_data = self.get_ending_data()?;
 
         let reg_x_data = self.read_reg(self.current_regs[0])?;
-        
-        return self.write_reg(self.current_regs[0], reg_x_data + ending_data as i16)
+
+        return self.write_reg(self.current_regs[0], reg_x_data + ending_data as i16);
     }
 
     pub fn perform_copy(&mut self) -> Result<(), RuntimeErr> {
@@ -1118,7 +1250,10 @@ impl Simulator {
     }
 
     pub fn perform_calln(&mut self) -> Result<(), RuntimeErr> {
-        let update_rg = self.write_reg(self.current_regs[0], (self.get_program_counter() + 1) as i16)?;
+        let update_rg = self.write_reg(
+            self.current_regs[0],
+            (self.get_program_counter() + 1) as i16,
+        )?;
 
         self.just_updated_pc = true;
 
