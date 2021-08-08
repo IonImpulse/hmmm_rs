@@ -79,13 +79,13 @@ impl AutoGrader {
                         .first()
                         .unwrap()
                         .split(",")
-                        .map(|x| x.parse::<i16>().unwrap())
+                        .map(|x| x.trim().parse::<i16>().unwrap())
                         .collect(),
                     outputs: test_case_split
                         .last()
                         .unwrap()
                         .split(",")
-                        .map(|x| x.parse::<i16>().unwrap())
+                        .map(|x| x.trim().parse::<i16>().unwrap())
                         .collect(),
                 });
             }
@@ -97,13 +97,13 @@ impl AutoGrader {
                     .first()
                     .unwrap()
                     .split(",")
-                    .map(|x| x.parse::<i16>().unwrap())
+                    .map(|x| x.trim().parse::<i16>().unwrap())
                     .collect(),
                 outputs: test_case_split
                     .last()
                     .unwrap()
                     .split(",")
-                    .map(|x| x.parse::<i16>().unwrap())
+                    .map(|x| x.trim().parse::<i16>().unwrap())
                     .collect(),
             });
         }
@@ -241,7 +241,12 @@ impl AutoGrader {
         println!("\n");
         println!("{}", top_line);
         println!(
-            "█ Name of File                                  █ # Error Cases █ # Fail Cases █ # Pass Cases █ Pass/Fail █"
+            "█ {}                                  █ {} █ {} █ {} █ {} █",
+            "Name of File".bold(),
+            "# Error Cases".bold(),
+            "# Fail Cases".bold(),
+            "# Pass Cases".bold(),
+            "Pass/Fail".bold()
         );
         println!(
             "{}", bottom_line
@@ -272,20 +277,24 @@ impl AutoGrader {
                 .filter(|x| x.exit_code == 0 && x.test_case_matches())
                 .collect();
 
-            let pass_fail: String;
+            let pass_fail_emoji: ColoredString;
 
             if cases_passed.len() == self.results.len() {
-                pass_fail = "✅".to_string();
+                pass_fail_emoji = "P".to_string().bold().green();
             } else {
-                pass_fail = "❌".to_string();
+                pass_fail_emoji = "F".to_string().bold().red();
             }
             let output_string = format!(
-                "█ {:45} █ {:13} █ {:12} █ {:12} █ {:8} █",
+                "█ {:45} █ {:13} █ {:12} █ {:12} █ {}  {:6} █",
                 self.file_names[i],
                 cases_errored.len(),
                 cases_failed.len(),
                 cases_passed.len(),
-                pass_fail,
+                pass_fail_emoji,
+                format!("{}/{}",
+                    cases_passed.len(),
+                    self.results.len(),
+                ).bold(),
             );
 
             println!("{}", output_string);

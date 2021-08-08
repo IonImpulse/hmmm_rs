@@ -442,7 +442,7 @@ pub fn main() -> terminal::error::Result<()> {
 
         if matches.value_of("autograder").is_some() {
             println!("{}\n", "AutoGrader Mode Enabled".bold().on_green());
-            let mut autograder = AutoGrader::new_from_cmd(file_path.trim_start_matches("\\").trim_end_matches("\\"), matches.value_of("autograder").unwrap());
+            let mut autograder = AutoGrader::new_from_cmd(file_path.trim_matches(&['\\', '/'] as &[_]), matches.value_of("autograder").unwrap());
             autograder.grade_all();
             autograder.print_results();
             exit(0);
