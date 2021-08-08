@@ -1,8 +1,6 @@
 use super::simulator::*;
 use super::*;
-use std::fs::{self, DirEntry, File};
-use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::fs;
 
 // Maximum number of iterations the autograder will
 // tolerate on each grade case before declaring the

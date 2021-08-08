@@ -1,10 +1,8 @@
 use super::*;
-use colored::*;
 use lazy_static::lazy_static;
 use std::io;
 use std::io::stdin;
 use std::io::BufRead;
-use terminal::*;
 
 lazy_static! {
     static ref INSTRUCTION_LOOKUP: Vec<InstructionType> = vec![

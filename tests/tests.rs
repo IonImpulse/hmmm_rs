@@ -1,5 +1,5 @@
 use hmmm_rs;
-use hmmm_rs::{write_file, load_file, write_compiled_hmmm, read_compiled_hmmm};
+use hmmm_rs::{load_file, write_compiled_hmmm, read_compiled_hmmm};
 use hmmm_rs::simulator::*;
 
 pub fn create_dummy_simulator() -> Simulator {
