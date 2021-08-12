@@ -45,7 +45,7 @@ Decompile a .hb file and save it as a .hmmm file: `.\hmmm_rs -i compiled.hb -o t
 NOTE: compiling to a .hmmm file to a .hb file and then decompiling to a .hmmm file will result in the same program, but comments in the original .hmmm file will be lost.
 
 # AutoGrader Mode
-![Grading output](https://user-images.githubusercontent.com/24578597/128656748-967b2df6-1725-4c72-942d-bda485c5fed2.png)
+![image](https://user-images.githubusercontent.com/24578597/129251194-8b3e720e-2311-41a7-b5e6-f2cef88d99b1.png)
 
 
 HMMM_RS comes with a built-in autograding system. By using the "--autograder" or "-a" flag, followed by some test cases, you can test an entire directory of
