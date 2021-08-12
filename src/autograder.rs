@@ -1,7 +1,8 @@
 use super::simulator::*;
 use super::*;
+use csv;
+use chrono;
 use std::fs;
-
 // Maximum number of iterations the autograder will
 // tolerate on each grade case before declaring the
 // test failed.
@@ -15,21 +16,21 @@ pub struct TestCase {
 
 impl TestCase {
     pub fn as_string(&self) -> String {
-        let mut s = String::new();
+        let mut output = String::new();
         for i in &self.inputs {
-            s = format!("{}{},", s, i);
+            output = format!("{}{},", output, i);
         }
 
-        s = s.trim_end_matches(',').to_string();
-        s = format!("{}|", s);
+        output = output.trim_end_matches(',').to_string();
+        output = format!("{}|", output);
         for i in &self.outputs {
-            s = format!("{}{},", s, i);
+            output = format!("{}{},", output, i);
         }
-        s = s.trim_end_matches(',').to_string();
+        output = output.trim_end_matches(',').to_string();
 
-        s = format!("{};", s);
+        output = format!("{};", output);
 
-        s
+        output
     }
 }
 
@@ -53,6 +54,18 @@ impl GradeCase {
 
     pub fn test_case_matches(&self) -> bool {
         self.test_case.clone().unwrap().outputs == self.outputs
+    }
+
+    pub fn passes(&self) -> bool {
+        self.exit_code == 0 && self.test_case_matches()
+    }
+
+    pub fn passes_as_string(&self) -> String {
+        if self.passes() {
+            String::from("Pass")
+        } else {
+            String::from("Fail")
+        }
     }
 }
 
@@ -158,6 +171,8 @@ impl AutoGrader {
     pub fn grade_all(&mut self) {
         let mut results: Vec<Vec<GradeCase>> = Vec::new();
         for test_case in self.test_cases.clone() {
+            println!("{} [{}]", "Grading Testcase".bold().blue(), test_case.as_string().bold());
+
             let mut test_case_results: Vec<GradeCase> = Vec::new();
 
             // Don't modify self, so we can reuse grade_cases
@@ -167,16 +182,27 @@ impl AutoGrader {
             for mut grade_case in grade_cases {
                 grade_case.set_test_case(test_case.clone());
                 
-                println!(
-                    "{} {} {} {}",
-                    "Grading".bold().green(),
-                    self.file_names[i],
-                    "on test case".bold(),
-                    test_case.as_string()
-                );
+                let grade_result = AutoGrader::grade_single(grade_case);
 
-                test_case_results.push(AutoGrader::grade_single(grade_case));
-                
+                let grade_result_string: String;
+
+                if grade_result.exit_code != 0 {
+                    grade_result_string = format!("{} [{}]", "FAILED".bold().red(), grade_result.exit_name);
+                } else if grade_result.exit_code == 0 && !grade_result.test_case_matches() {
+                    grade_result_string = format!("{} [{}]", "FAILED".bold().red(), "Outputs don't match");
+                } else {
+                    grade_result_string = format!("{} [{}]", "PASSED".bold().green(), grade_result.exit_name);
+                }
+
+                test_case_results.push(grade_result);
+
+                println!(
+                    "- {} {:45} {} {}",
+                    "Graded".bold().green(),
+                    self.file_names[i],
+                    ":".bold(),
+                    grade_result_string,
+                );
                 i += 1;
             }
             results.push(test_case_results);
@@ -236,7 +262,7 @@ impl AutoGrader {
             "████".yellow()
         );
         println!("{}", "▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".yellow());
-        println!("\n");
+        println!();
         println!("{}", top_line);
         println!(
             "█ {}                                  █ {} █ {} █ {} █ {} █",
@@ -246,12 +272,9 @@ impl AutoGrader {
             "# Pass Cases".bold(),
             "Pass/Fail".bold()
         );
-        println!(
-            "{}", bottom_line
-        );
+        println!("{}", bottom_line);
         println!();
         println!("{}", top_line);
-        
         for i in 0..self.results[0].len() {
             let grade_cases_all = self
                 .results
@@ -260,13 +283,21 @@ impl AutoGrader {
                 .collect::<Vec<GradeCase>>();
 
             // Cases that failed with a runtime error
-            
+            let cases_errored: Vec<&GradeCase> = grade_cases_all
+                .iter()
+                .filter(|x| x.exit_code != 0)
+                .collect();
+
             // Cases that did not match expected test case
-            
+            let cases_failed: Vec<&GradeCase> = grade_cases_all
+                .iter()
+                .filter(|x| x.exit_code == 0 && !x.test_case_matches())
+                .collect();
+
             // Cases that passed
             let cases_passed: Vec<&GradeCase> = grade_cases_all
                 .iter()
-                .filter(|x| x.exit_code == 0 && x.test_case_matches())
+                .filter(|x| x.passes())
                 .collect();
 
             let pass_fail_emoji: ColoredString;
@@ -276,25 +307,58 @@ impl AutoGrader {
             } else {
                 pass_fail_emoji = "F".to_string().bold().red();
             }
-            let output_string = format!(
+            let mut output_string = format!(
                 "█ {:45} █ {:13} █ {:12} █ {:12} █ {}  {:6} █",
                 self.file_names[i],
-                grade_cases_all
-                .iter()
-                .filter(|x| x.exit_code != 0).count(),
-                grade_cases_all
-                .iter()
-                .filter(|x| x.exit_code == 0 && !x.test_case_matches()).count(),
+                cases_errored.len(),
+                cases_failed.len(),
                 cases_passed.len(),
                 pass_fail_emoji,
-                format!("{}/{}",
-                    cases_passed.len(),
-                    self.results.len(),
-                ).bold(),
+                format!("{}/{}", cases_passed.len(), self.results.len(),),
             );
+
+            // Increase readability by making every other line a different color
+            if i % 2 == 0 {
+                // "bright black" is just grey
+                output_string = format!("{}", output_string.on_bright_black());
+            }
+
+            output_string = format!("{}", output_string.bold());
 
             println!("{}", output_string);
         }
         println!("{}", bottom_line);
+    }
+
+    /// Exports the GradeResults to a CSV file
+    pub fn export_results(&self, path: &str) -> csv::Result<String> {
+        let current_time = chrono::offset::Local::now();
+        let current_time_string = current_time.format("%Y-%m-%d_%H-%M-%S");
+
+        let out_path = format!("{}/results_{}.csv", path, current_time_string);
+        let mut wtr = csv::WriterBuilder::new()
+        .from_path(&out_path)?;
+
+        // Write the header
+        wtr.write_record(&["File Name", "Test Case", "Exit Code", "Exit String", "Pass/Fail"])?;
+
+        // Write the results
+        for i in 0..self.results[0].len() {
+            for j in 0..self.results.len() {
+                let grade_case = &self.results[j][i];
+                wtr.write_record(&[
+                    &self.file_names[i],
+                    &grade_case.test_case.clone().unwrap().as_string(),
+                    &grade_case.exit_code.to_string(),
+                    &grade_case.exit_name,
+                    &grade_case.passes_as_string(),
+                ])?;
+            }
+        }
+        
+        
+        wtr.flush()?;
+
+        Ok(out_path)
     }
 }

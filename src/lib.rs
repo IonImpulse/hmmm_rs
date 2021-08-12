@@ -426,9 +426,17 @@ pub fn main() -> terminal::error::Result<()> {
 
         if matches.value_of("autograder").is_some() {
             println!("{}\n", "AutoGrader Mode Enabled".bold().on_green());
-            let mut autograder = AutoGrader::new_from_cmd(file_path.trim_matches(&['\\', '/'] as &[_]), matches.value_of("autograder").unwrap());
+            let path = file_path.trim_matches(&['\\', '/'] as &[_]);
+            let mut autograder = AutoGrader::new_from_cmd(path, matches.value_of("autograder").unwrap());
             autograder.grade_all();
             autograder.print_results();
+            let export_result = autograder.export_results(path);
+
+            if export_result.is_err() {
+                println!("\n{}\n", "AutoGrader Export Failed".bold().on_red());
+            } else {
+                println!("\n{} {}\n", "AutoGrader Export Successful:".bold().on_green(), export_result.unwrap().bold());
+            }
             exit(0);
         }
 

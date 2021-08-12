@@ -18,6 +18,8 @@ path = "src/lib.rs"
 lazy_static = "*"
 clap = "*"
 colored = "2"
+csv = "*"
+chrono = "*"
 
 [dependencies.terminal]
 version = "0.2.1"
