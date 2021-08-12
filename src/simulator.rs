@@ -987,11 +987,11 @@ impl Simulator {
                     let w = terminal::stdout();
                     let _ = w.act(Action::ShowCursor);
                     let _ = w.act(Action::EnableBlinking);
-                    let _ = w.act(Action::MoveCursorTo(0, 29)).unwrap();
+                    let _ = w.act(Action::MoveCursorTo(0, 28)).unwrap();
                     print!("{}", "Enter number:".on_yellow().black());
-                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    let _ = w.act(Action::MoveCursorTo(14, 28)).unwrap();
                     print!("                                 ");
-                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
+                    let _ = w.act(Action::MoveCursorTo(14, 28)).unwrap();
                     stdin().lock().read_line(&mut line).unwrap();
                     let _ = w.act(Action::DisableBlinking);
                     let _ = w.act(Action::HideCursor);

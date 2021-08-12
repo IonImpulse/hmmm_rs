@@ -212,7 +212,7 @@ impl AutoGrader {
     }
 
     pub fn grade_single(grade_case: GradeCase) -> GradeCase {
-        let iterations_left = AUTOGRADER_MAX_ITERATIONS;
+        let mut iterations_left = AUTOGRADER_MAX_ITERATIONS;
         let sim = grade_case.sim.clone();
         let test_case = grade_case.get_test_case().unwrap();
         // If the simulator failed on compile, just return it
@@ -235,6 +235,8 @@ impl AutoGrader {
                         exit_name: format!("{:?}", step_result.unwrap_err()),
                     };
                 }
+
+                iterations_left -= 1;
             }
             let outputs = sim.get_outputs();
 

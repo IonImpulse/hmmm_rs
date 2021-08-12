@@ -113,13 +113,11 @@ pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
 pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let mut debug_screen_lines: Vec<String> = Vec::new();
 
-    debug_screen_lines.push("█▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀█\n".to_string());
-
     debug_screen_lines.push(format!(
         "{}{}{}",
-        "█          █ ",
-        " REGISTER CONTENTS ".bold().on_blue(),
-        " █          █\n",
+        "█▀▀▀▀▀▀▀▀▀▀█",
+        "  REGISTER CONTENTS  ".bold().on_blue(),
+        "█▀▀▀▀▀▀▀▀▀▀█\n",
     ));
 
     for row in 0..4 {
