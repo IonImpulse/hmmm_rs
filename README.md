@@ -28,9 +28,12 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -i, --input <input>      Input .hmmm or .hb file
-    -o, --output <output>    Output location of either .hmmm or .hb file
-    -s, --speed <speed>      Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)
+    -a, --autograder <autograder>    Toggles the AutoGrader functionality, expecting a test string to be given. If
+                                     enabled, expects a directory path instead of a file path for --input and --output.
+                                     --debug, --no-run, and --speed are ignored in this mode.
+    -i, --input <input>              Input .hmmm or .hb file
+    -o, --output <output>            Output location of either .hmmm or .hb file
+    -s, --speed <speed>              Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)
 ```
 
 Just run a .hmmm file: `.\hmmm_rs -i tests\test.hmmm`
@@ -40,6 +43,29 @@ Run a .hmmm file and save the compiled binary: `.\hmmm_rs -i tests\test.hmmm -o 
 Decompile a .hb file and save it as a .hmmm file: `.\hmmm_rs -i compiled.hb -o tests\test.hmmm`
 
 NOTE: compiling to a .hmmm file to a .hb file and then decompiling to a .hmmm file will result in the same program, but comments in the original .hmmm file will be lost.
+
+# AutoGrader Mode
+![Grading output](https://user-images.githubusercontent.com/24578597/128656748-967b2df6-1725-4c72-942d-bda485c5fed2.png)
+
+
+HMMM_RS comes with a built-in autograding system. By using the "--autograder" or "-a" flag, followed by some test cases, you can test an entire directory of
+.hmmm files against your specifications. The test case string should be formatted as follows:
+```
+-a "input #1, input #2, ..., input #n | output #1, output #2, output #3, ..., output #n;"
+EXAMPLE:
+-a "16, 2 | 16, 8;"
+```
+
+The testcase "16, 2 | 16, 8;" means that the program should ask for input *exactly* twice, and will be given the values 16 and 2. Additionaly, it needs to output the numbers 16 and 8.
+
+You can chain as many testcases as you want together, so long as you seperate them with a semicolon.
+```
+EXAMPLE:
+-a "16, 2 | 16, 8; 15, 2 | 15, 7; 64, 3 | 64, 21;"
+```
+All three testcases will be run and graded against.
+
+As HMMM can only output integers, only integers will be parsed correctly. Any other character will throw an error.
 
 # System Exit Codes:
 On exit, HMMM_RS produces a system exit code that matches the exit problem. This value can be read by a process calling it, providing a method for external tools to compile/run HMMM. For a program successfully exiting, a error code of `0` is produced. The rest are as follows:
