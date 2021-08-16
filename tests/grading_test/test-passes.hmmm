@@ -1,0 +1,12 @@
+0   read r1     # read dividend from the user
+1   write r1    # echo the input
+2   read r2     # read divisor from the user
+3   jeqzn r2, 7 # jump to 7 if trying to divide by 0
+
+4   div r3, r1, r2 # divide user's parameters
+5   write r3    # print the result
+6   halt
+
+7   setn r3, 0  # 0 is the result for division by 0
+8   write r3    # print the result
+9   halt

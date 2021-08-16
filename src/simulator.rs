@@ -1,9 +1,8 @@
-use colored::*;
+use super::*;
 use lazy_static::lazy_static;
 use std::io;
 use std::io::stdin;
 use std::io::BufRead;
-use terminal::*;
 
 lazy_static! {
     static ref INSTRUCTION_LOOKUP: Vec<InstructionType> = vec![
@@ -242,11 +241,11 @@ impl InstructionType {
         human_explanation: &'static str,
     ) -> InstructionType {
         InstructionType {
-            names: names,
-            match_string: match_string,
-            mask_string: mask_string,
-            arguments: arguments,
-            human_explanation: human_explanation,
+            names,
+            match_string,
+            mask_string,
+            arguments,
+            human_explanation,
         }
     }
 }
@@ -267,7 +266,7 @@ pub enum CompileErr {
 }
 
 impl CompileErr {
-    pub fn as_code(self) -> i32 {
+    pub fn as_code(&self) -> i32 {
         match self {
             CompileErr::InstructionDoesNotExist => 10,
             CompileErr::InvalidArgumentType => 11,
@@ -294,7 +293,7 @@ pub struct Instruction {
 impl Instruction {
     pub fn new_from_text(line_contents: &str) -> Result<Instruction, CompileErr> {
         // Split on both "," and " "
-        let contents_list: Vec<&str> = line_contents.split(" ").collect();
+        let contents_list: Vec<&str> = line_contents.split(' ').collect();
 
         let mut instruction_type: Option<InstructionType> = None;
 
@@ -319,16 +318,16 @@ impl Instruction {
             return Err(CompileErr::TooManyArguments);
         } else if instruction_args.len() < instruction_type.arguments.replace("z", "").len() {
             return Err(CompileErr::TooFewArguments);
-        } else if instruction_type.arguments.len() == 0 {
+        } else if instruction_type.arguments.is_empty() {
             // If it's a single command, just return it
             return Ok(Instruction {
                 instruction_type: instruction_type.clone(),
                 text_contents: String::from(""),
                 binary_contents: instruction_type
-                    .clone()
+                    
                     .match_string
-                    .split(" ")
-                    .map(|a| String::from(a))
+                    .split(' ')
+                    .map(String::from)
                     .collect(),
             });
         }
@@ -347,19 +346,15 @@ impl Instruction {
 
         let mut binary_contents: Vec<String> = instruction_type
             .match_string
-            .split(" ")
-            .map(|a| String::from(a))
+            .split(' ')
+            .map(String::from)
             .collect();
 
         let mut filled_slots: Vec<bool> = instruction_type
             .mask_string
-            .split(" ")
+            .split(' ')
             .map(|a| {
-                if a == "0000" {
-                    return false;
-                } else {
-                    return true;
-                }
+                a != "0000"
             })
             .collect();
 
@@ -367,12 +362,12 @@ impl Instruction {
         let mut arg_to_get = 0;
         for current_instruction_type in instruction_chars {
             let arg = instruction_args[arg_to_get];
-            let slot_to_fill = filled_slots.iter().position(|a| *a == false).unwrap();
+            let slot_to_fill = filled_slots.iter().position(|a| !(*a)).unwrap();
             let mut binary_string = String::from("");
             filled_slots[slot_to_fill] = true;
 
             if current_instruction_type == 'r' {
-                if arg.to_lowercase().starts_with("r") {
+                if arg.to_lowercase().starts_with('r') {
                     let register_number = arg[1..].parse::<u8>();
 
                     if register_number.is_err() {
@@ -430,49 +425,43 @@ impl Instruction {
         }
 
         Ok(Instruction {
-            instruction_type: instruction_type,
-            text_contents: text_contents,
-            binary_contents: binary_contents,
+            instruction_type,
+            text_contents,
+            binary_contents,
         })
     }
 
     pub fn new_from_binary(line_contents: &str) -> Result<Instruction, CompileErr> {
         let binary_contents: Vec<String> = line_contents
             .clone()
-            .split(" ")
-            .map(|a| String::from(a))
+            .split(' ')
+            .map(String::from)
             .collect();
 
         let mut instruction_type: Option<InstructionType> = None;
 
-        let line_split: Vec<String> = line_contents.split(" ").map(|a| String::from(a)).collect();
+        let line_split: Vec<String> = line_contents.split(' ').map(String::from).collect();
 
         for instruction in INSTRUCTION_LOOKUP.clone().into_iter() {
             let mut matches_instruction: bool = true;
 
             let matcher: Vec<String> = instruction
                 .match_string
-                .split(" ")
-                .map(|a| String::from(a))
+                .split(' ')
+                .map(String::from)
                 .collect();
 
             let mask: Vec<bool> = instruction
                 .mask_string
-                .split(" ")
+                .split(' ')
                 .map(|a| {
-                    if a == "0000" {
-                        return false;
-                    } else {
-                        return true;
-                    }
+                    a != "0000"
                 })
                 .collect();
 
             for i in 0..4 {
-                if mask[i] {
-                    if matcher[i] != line_split[i] {
-                        matches_instruction = false;
-                    }
+                if mask[i] && matcher[i] != line_split[i] {
+                    matches_instruction = false;
                 }
             }
 
@@ -532,8 +521,8 @@ impl Instruction {
                 slots_filled += 4;
             }
         }
-        if instruction_args.len() > 0 {
-            text_contents = String::from(instruction_args[0].clone());
+        if !instruction_args.is_empty() {
+            text_contents = instruction_args[0].clone();
         }
         if instruction_args.len() > 1 {
             for i in 1..(instruction_args.len()) {
@@ -542,9 +531,9 @@ impl Instruction {
         }
 
         Ok(Instruction {
-            instruction_type: instruction_type,
-            text_contents: text_contents,
-            binary_contents: binary_contents,
+            instruction_type,
+            text_contents,
+            binary_contents,
         })
     }
 
@@ -585,7 +574,7 @@ impl Instruction {
             );
         }
 
-        return hex_string;
+        hex_string
     }
 }
 
@@ -603,10 +592,12 @@ pub enum RuntimeErr {
     InvalidInstructionType,
     DivideByZero,
     RegisterOutOfBounds,
+    MaximumIterationsReached,
+    TooManyInputs,
 }
 
 impl RuntimeErr {
-    pub fn as_code(self) -> i32 {
+    pub fn as_code(&self) -> i32 {
         match self {
             RuntimeErr::InvalidRegisterLocation => 100,
             RuntimeErr::MemoryLocationNotData => 101,
@@ -614,12 +605,14 @@ impl RuntimeErr {
             RuntimeErr::InvalidMemoryLocation => 103,
             RuntimeErr::InvalidData => 104,
             RuntimeErr::InvalidSignedNumber => 105,
-            RuntimeErr::Halt => 106,
-            RuntimeErr::InvalidProgramCounter => 107,
-            RuntimeErr::InstructionIsData => 108,
-            RuntimeErr::InvalidInstructionType => 109,
-            RuntimeErr::DivideByZero => 110,
-            RuntimeErr::RegisterOutOfBounds => 111,
+            RuntimeErr::Halt => 0,
+            RuntimeErr::InvalidProgramCounter => 106,
+            RuntimeErr::InstructionIsData => 107,
+            RuntimeErr::InvalidInstructionType => 108,
+            RuntimeErr::DivideByZero => 109,
+            RuntimeErr::RegisterOutOfBounds => 110,
+            RuntimeErr::MaximumIterationsReached => 111,
+            RuntimeErr::TooManyInputs => 112,
         }
     }
 }
@@ -632,6 +625,10 @@ pub struct Simulator {
     pub counter_log: Vec<usize>,
     pub just_updated_pc: bool,
     pub debug: bool,
+    pub current_regs: Vec<u8>,
+    pub headless: bool,
+    pub inputs: Vec<i16>,
+    pub outputs: Vec<i16>,
 }
 
 impl Simulator {
@@ -646,19 +643,96 @@ impl Simulator {
 
         let mut registers: Vec<i16> = Vec::new();
         for _ in 0..16 {
-            registers.push(0 as i16);
+            registers.push(0_i16);
         }
         Simulator {
-            memory: memory,
-            registers: registers,
+            memory,
+            registers,
             program_counter: 0,
             counter_log: Vec::new(),
             just_updated_pc: false,
             debug: false,
+            current_regs: vec![0, 0, 0],
+            headless: false,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
         }
     }
 
-    pub fn write_rg(&mut self, register: u8, data: i16) -> Result<(), RuntimeErr> {
+    pub fn new_headless(compiled_text: Vec<Instruction>) -> Self {
+        let mut sim = Simulator::new(compiled_text);
+        sim.headless = true;
+        sim
+    }
+
+    /// Function to compile a vec of HMMM instructions into
+    /// a Vec of Instruction structs
+    pub fn compile_hmmm(
+        uncompiled_text: Vec<String>,
+        is_headless: bool,
+    ) -> Result<Vec<Instruction>, CompileErr> {
+        let mut line_counter = 0;
+        let mut compiled_text: Vec<Instruction> = Vec::new();
+
+        for (index, line) in uncompiled_text.iter().enumerate() {
+            if !(line.trim().starts_with('#')) && line.len() > 2 {
+                let mut line_parts: Vec<String> = line
+                    .split(&[',', ' ', '\t'][..])
+                    .map(String::from)
+                    .collect();
+                let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
+                let comment_part = line_parts.iter().position(|a| a.starts_with('#'));
+
+                if comment_part.is_some() {
+                    line_parts.drain(comment_part.unwrap()..);
+                }
+
+                let line_parts: Vec<String> = String::from(line_parts.join(" ").trim())
+                    .split_whitespace()
+                    .map(String::from)
+                    .collect();
+
+                let cleaned_line = line_parts[1..].join(" ").to_lowercase();
+                if line_number.is_err() {
+                    if !is_headless {
+                        raise_compile_error(
+                            index,
+                            CompileErr::LineNumberNotPresent,
+                            line,
+                            line_parts,
+                        );
+                    }
+                    return Err(CompileErr::LineNumberNotPresent);
+                } else if line_number.unwrap() != line_counter {
+                    if !is_headless {
+                        raise_compile_error(
+                            index,
+                            CompileErr::InvalidLineNumber,
+                            line,
+                            line_parts,
+                        );
+                    }
+                    return Err(CompileErr::InvalidLineNumber);
+                } else {
+                    let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
+                    if next_instruction.is_err() {
+                        let err = next_instruction.unwrap_err();
+                        if !is_headless {
+                            raise_compile_error(index, err.clone(), line, line_parts);
+                        }
+                        return Err(err);
+                    } else {
+                        compiled_text.push(next_instruction.unwrap());
+                        line_counter += 1;
+                    }
+                }
+            }
+        }
+
+        Ok(compiled_text)
+    }
+
+    pub fn write_reg(&mut self, register: u8, data: i16) -> Result<(), RuntimeErr> {
         if register > 15 {
             return Err(RuntimeErr::InvalidRegisterLocation);
         } else if register > 0 {
@@ -668,11 +742,11 @@ impl Simulator {
         Ok(())
     }
 
-    pub fn read_rg(&mut self, register: u8) -> Result<i16, RuntimeErr> {
+    pub fn read_reg(&mut self, register: u8) -> Result<i16, RuntimeErr> {
         if register == 0 {
-            return Ok(0 as i16);
+            Ok(0_i16)
         } else if register > 15 {
-            return Err(RuntimeErr::InvalidRegisterLocation);
+            Err(RuntimeErr::InvalidRegisterLocation)
         } else {
             Ok(self.registers[register as usize])
         }
@@ -690,13 +764,13 @@ impl Simulator {
     pub fn read_mem(&mut self, memory: u8) -> Result<i16, RuntimeErr> {
         let data = self.memory[memory as usize].clone();
         if data.instruction_type.names[0] != "data" {
-            return Err(RuntimeErr::MemoryLocationNotData);
+            Err(RuntimeErr::MemoryLocationNotData)
         } else {
             let binary = data.binary_contents.join("");
             let num = i16::from_str_radix(binary.as_str(), 2);
 
             if num.is_err() {
-                return Err(RuntimeErr::InvalidMemoryData);
+                Err(RuntimeErr::InvalidMemoryData)
             } else {
                 Ok(num.unwrap())
             }
@@ -708,12 +782,50 @@ impl Simulator {
     /// Logs each change for debugging purposes.
     pub fn update_pc(&mut self, new_pc: usize) -> Result<(), RuntimeErr> {
         if new_pc > 255 {
-            return Err(RuntimeErr::InvalidProgramCounter);
+            Err(RuntimeErr::InvalidProgramCounter)
         } else {
             self.counter_log.push(self.program_counter);
             self.program_counter = new_pc;
             Ok(())
         }
+    }
+
+    /// Sets the state of debug mode
+    pub fn set_debug(&mut self, debug: bool) {
+        self.debug = debug;
+    }
+
+    // Get debug state
+    pub fn is_debug(&self) -> bool {
+        self.debug
+    }
+
+    // Get headless state
+    pub fn is_headless(&self) -> bool {
+        self.headless
+    }
+
+    // Add to output
+    pub fn add_output(&mut self, output: i16) {
+        self.outputs.push(output);
+    }
+
+    // Set inputs
+    pub fn set_inputs(&mut self, inputs: Vec<i16>) {
+        self.inputs = inputs;
+    }
+
+    // Get the next input, and pop it
+    pub fn get_next_input(&mut self) -> Option<i16> {
+        if self.inputs.is_empty() {
+            return None;
+        }
+        Some(self.inputs.remove(0))
+    }
+
+    // Return output vec
+    pub fn get_outputs(&mut self) -> Vec<i16> {
+        self.outputs.clone()
     }
 
     /// Function to both execute instruction on program counter
@@ -729,7 +841,7 @@ impl Simulator {
 
         // Otherwise, increase the program counter by one if instruction
         // didn't already do thats
-        if self.just_updated_pc == false {
+        if !self.just_updated_pc {
             let update_program_counter = self.update_pc(self.program_counter + 1);
 
             // If there's an error (went past the final memory address), return it
@@ -741,335 +853,61 @@ impl Simulator {
         Ok(())
     }
 
-    /// Massive single function to step though a line of instructions
+    /// Matches instruction name to appropriate function and executes it.
     ///
-    /// Modifies self in order to change the state of memory and registers
+    /// Modifies self in order to change the state of memory and registers.
     ///
-    /// Returns a result of either Ok or a RuntimeErr
+    /// Returns a result of either Ok or a RuntimeErr.
     pub fn execute_next(&mut self) -> Result<(), RuntimeErr> {
         // Clone the current program counter for use in instructions
-        let pc = self.program_counter.clone();
+        let pc = self.get_program_counter();
+
+        if pc > 255 {
+            return Err(RuntimeErr::InvalidProgramCounter);
+        }
+
         // Make sure to rest just_updated_pc to false
         self.just_updated_pc = false;
         // Clone the current instruction from memory
-        let instruction_to_run = self.memory[pc].clone();
+        let instruction_to_run = self.get_memory(self.get_program_counter()).unwrap();
         // Get the name of the instruction for quick reference
         let instruction_name = instruction_to_run.instruction_type.names[0];
 
-        // All binary of length 4 can be coerced into u8, and having all three
-        // arguments available as numbers can be useful for instructions
-        let reg_x = u8::from_str_radix(instruction_to_run.binary_contents[1].as_str(), 2).unwrap();
-        let reg_y = u8::from_str_radix(instruction_to_run.binary_contents[2].as_str(), 2).unwrap();
-        let reg_z = u8::from_str_radix(instruction_to_run.binary_contents[3].as_str(), 2).unwrap();
+        self.current_regs = self.quick_access_regs(instruction_to_run);
 
-        // The last two binary sections are used as data often, so we can get that as a number
-        let ending_data_u8 =
-            u8::from_str_radix(instruction_to_run.binary_contents[2..].join("").as_str(), 2)
-                .unwrap();
-        // Same can be said for the data in regX
-        let reg_x_data = self.read_rg(reg_x);
-
-        if reg_x_data.is_err() {
-            return Err(reg_x_data.unwrap_err());
-        }
-
-        let reg_x_data = reg_x_data.unwrap();
         let result: Result<(), RuntimeErr> = match instruction_name {
-            "data" => return Err(RuntimeErr::InstructionIsData),
-            "halt" => return Err(RuntimeErr::Halt),
-            "nop" => return Ok(()),
-            "read" => loop {
-                let mut line = String::new();
-                if self.debug == true {
-                    let w = terminal::stdout();
-                    let _ = w.act(Action::ShowCursor);
-                    let _ = w.act(Action::EnableBlinking);
-                    let _ = w.act(Action::MoveCursorTo(0, 29)).unwrap();
-                    print!("{}", "Enter number:".on_yellow().black());
-                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
-                    print!("                                 ");
-                    let _ = w.act(Action::MoveCursorTo(0, 30)).unwrap();
-                    stdin().lock().read_line(&mut line).unwrap();
-                    let _ = w.act(Action::DisableBlinking);
-                    let _ = w.act(Action::HideCursor);
-                } else {
-                    println!("{}", "Enter number:".on_yellow().black());
-                    io::stdin().read_line(&mut line).unwrap();
-                }
-
-                line = line.trim().to_string();
-                if line == "q" {
-                    return Err(RuntimeErr::Halt);
-                }
-
-                let number = line.parse::<i16>();
-
-                if number.is_ok() {
-                    if self.debug == true {
-                        let w = terminal::stdout();
-                        w.act(Action::MoveCursorTo(16, 29)).unwrap();
-                        print!("                                        ");
-                    }
-                    return self.write_rg(reg_x, number.unwrap());
-                }
-                if self.debug == true {
-                    let w = terminal::stdout();
-                    w.act(Action::MoveCursorTo(16, 29)).unwrap();
-                    print!("Invalid number! Please try again...");
-                } else {
-                    println!("Invalid number! Please try again...");
-                }
-            },
-            "write" => {
-                if self.debug == true {
-                    let w = terminal::stdout();
-                    w.act(Action::MoveCursorTo(50, 8)).unwrap();
-                    let to_print = format!("{:<10}", reg_x_data);
-                    print!("{}", to_print);
-                } else {
-                    println!("{}\n{}", "HMMM OUT:".on_green().black(), reg_x_data);
-                }
-                return Ok(());
-            }
-            "setn" => {
-                let ending_data_i8 = signed_binary_conversion(
-                    instruction_to_run.binary_contents[2..].join("").as_str(),
-                );
-
-                if ending_data_i8.is_err() {
-                    return Err(RuntimeErr::InvalidData);
-                }
-
-                return self.write_rg(reg_x, ending_data_i8.unwrap() as i16);
-            }
-            "loadr" => {
-                let index = self.read_rg(reg_y);
-
-                if index.is_err() {
-                    return Err(index.unwrap_err());
-                }
-
-                let index = index.unwrap();
-
-                if index > 255 || index < 0 {
-                    return Err(RuntimeErr::InvalidMemoryLocation);
-                }
-
-                let data = self.read_mem(index as u8);
-
-                if data.is_err() {
-                    return Err(data.unwrap_err());
-                }
-
-                return self.write_rg(reg_x, data.unwrap());
-            }
-            "storer" => {
-                let index = self.read_rg(reg_y);
-                if index.is_err() {
-                    return Err(index.unwrap_err());
-                }
-
-                let index = index.unwrap();
-
-                if index > 255 || index < 0 {
-                    return Err(RuntimeErr::InvalidMemoryLocation);
-                }
-
-                return self.write_mem(index as u8, reg_x_data);
-            }
-            "popr" => {
-                let reg_y_data = self.read_rg(reg_y);
-
-                if reg_y_data.is_err() {
-                    return Err(reg_y_data.unwrap_err());
-                }
-
-                let reg_y_data = reg_y_data.unwrap();
-
-                if reg_y_data > 255 || reg_y_data < 0 {
-                    return Err(RuntimeErr::InvalidMemoryLocation);
-                }
-
-                let change_reg = self.write_rg(reg_y, reg_y_data - 1);
-
-                if change_reg.is_err() {
-                    return Err(change_reg.unwrap_err());
-                }
-
-                let reg_y_data = reg_y_data as u8;
-
-                let mem_data = self.read_mem(reg_y_data - 1);
-
-                if mem_data.is_err() {
-                    return Err(mem_data.unwrap_err());
-                }
-
-                let mem_data = mem_data.unwrap();
-
-                return self.write_rg(reg_x, mem_data);
-            }
-            "pushr" => {
-                let reg_y_data = self.read_rg(reg_y);
-                if reg_y_data.is_err() {
-                    return Err(reg_y_data.unwrap_err());
-                }
-
-                let reg_y_data = reg_y_data.unwrap();
-
-                if reg_y_data > 255 || reg_y_data < 0 {
-                    return Err(RuntimeErr::InvalidMemoryData);
-                }
-
-                let mem_write = self.write_mem(reg_y_data as u8, reg_x_data);
-
-                if mem_write.is_err() {
-                    return Err(mem_write.unwrap_err());
-                }
-
-                return self.write_rg(reg_y, reg_y_data + 1);
-            }
-            "loadn" => {
-                let memory_data = self.read_mem(ending_data_u8);
-
-                if memory_data.is_err() {
-                    return Err(memory_data.unwrap_err());
-                }
-                let memory_data = memory_data.unwrap();
-                return self.write_rg(reg_x, memory_data);
-            }
-            "storen" => {
-                return self.write_mem(ending_data_u8, reg_x_data);
-            }
-            "addn" => {
-                let ending_data_i8 = signed_binary_conversion(
-                    instruction_to_run.binary_contents[2..].join("").as_str(),
-                );
-
-                if ending_data_i8.is_err() {
-                    return Err(RuntimeErr::InvalidData);
-                }
-
-                return self.write_rg(reg_x, reg_x_data + ending_data_i8.unwrap() as i16);
-            }
-            "copy" => {
-                let reg_y_data = self.read_rg(reg_y);
-
-                if reg_y_data.is_err() {
-                    return Err(reg_y_data.unwrap_err());
-                }
-
-                let reg_y_data = reg_y_data.unwrap();
-
-                return self.write_rg(reg_x, reg_y_data);
-            }
-            "neg" => {
-                let reg_y_data = self.read_rg(reg_y);
-
-                if reg_y_data.is_err() {
-                    return Err(reg_y_data.unwrap_err());
-                }
-                let reg_y_data = reg_y_data.unwrap();
-                return self.write_rg(reg_x, -reg_y_data);
-            }
-            "add" | "sub" | "mul" | "div" | "mod" => {
-                let reg_z_data = self.read_rg(reg_z);
-
-                if reg_z_data.is_err() {
-                    return Err(reg_z_data.unwrap_err());
-                }
-
-                let reg_z_data = reg_z_data.unwrap();
-
-                let reg_y_data = self.read_rg(reg_y);
-
-                if reg_y_data.is_err() {
-                    return Err(reg_y_data.unwrap_err());
-                }
-
-                let reg_y_data = reg_y_data.unwrap();
-
-                if reg_z_data == 0 && instruction_name == "div" {
-                    return Err(RuntimeErr::DivideByZero);
-                }
-                // Coerce to a higher level data type
-                // so that we can detect an out of bounds error
-                let result: i32 = match instruction_name {
-                    "add" => reg_y_data as i32 + reg_z_data as i32,
-                    "sub" => reg_y_data as i32 - reg_z_data as i32,
-                    "mul" => reg_y_data as i32 * reg_z_data as i32,
-                    "div" => reg_y_data as i32 / reg_z_data as i32,
-                    "mod" => reg_y_data as i32 % reg_z_data as i32,
-                    _ => 0,
-                };
-
-                if result > 32767 || result < -32768 {
-                    return Err(RuntimeErr::RegisterOutOfBounds);
-                }
-
-                return self.write_rg(reg_x, result as i16);
-            }
-            "jumpr" => {
-                if reg_x_data < 0 {
-                    return Err(RuntimeErr::InvalidProgramCounter);
-                }
-                self.just_updated_pc = true;
-                return self.update_pc(reg_x_data as usize);
-            }
-            "jumpn" => {
-                self.just_updated_pc = true;
-                return self.update_pc(ending_data_u8 as usize);
-            }
-            "jeqzn" => {
-                if reg_x_data == 0 {
-                    self.just_updated_pc = true;
-                    return self.update_pc(ending_data_u8 as usize);
-                } else {
-                    Ok(())
-                }
-            }
-            "jnezn" => {
-                if reg_x_data != 0 {
-                    self.just_updated_pc = true;
-                    return self.update_pc(ending_data_u8 as usize);
-                } else {
-                    Ok(())
-                }
-            }
-            "jgtzn" => {
-                if reg_x_data > 0 {
-                    self.just_updated_pc = true;
-                    return self.update_pc(ending_data_u8 as usize);
-                } else {
-                    Ok(())
-                }
-            }
-            "jltzn" => {
-                if reg_x_data < 0 {
-                    self.just_updated_pc = true;
-                    return self.update_pc(ending_data_u8 as usize);
-                } else {
-                    Ok(())
-                }
-            }
-            "calln" => {
-                let update_rg = self.write_rg(reg_x, (pc + 1) as i16);
-
-                if update_rg.is_err() {
-                    return Err(update_rg.unwrap_err());
-                }
-                self.just_updated_pc = true;
-
-                return self.update_pc(ending_data_u8 as usize);
-            }
-            _ => return Err(RuntimeErr::InvalidInstructionType),
+            "data" => self.perform_data(),
+            "halt" => self.perform_halt(),
+            "nop" => self.perform_nop(),
+            "read" => self.perform_read(),
+            "write" => self.perform_write(),
+            "setn" => self.perform_setn(),
+            "loadr" => self.perform_loadr(),
+            "storer" => self.perform_storer(),
+            "popr" => self.perform_popr(),
+            "pushr" => self.perform_pushr(),
+            "loadn" => self.perform_loadn(),
+            "storen" => self.perform_storen(),
+            "addn" => self.perform_addn(),
+            "copy" => self.perform_copy(),
+            "neg" => self.perform_neg(),
+            "add" | "sub" | "mul" | "div" | "mod" => self.perform_arithmetic(instruction_name),
+            "jumpr" => self.perform_jumpr(),
+            "jumpn" => self.perform_jumpn(),
+            "jeqzn" => self.perform_jeqzn(),
+            "jnezn" => self.perform_jnezn(),
+            "jgtzn" => self.perform_jgtzn(),
+            "jltzn" => self.perform_jltzn(),
+            "calln" => self.perform_calln(),
+            _ => Err(RuntimeErr::InvalidInstructionType),
         };
 
-        return result;
+        result
     }
 
     /// Returns the current program counter as usize
     pub fn get_program_counter(&self) -> usize {
-        return self.program_counter;
+        self.program_counter
     }
 
     /// Returns the register value at the given register index
@@ -1077,27 +915,338 @@ impl Simulator {
         let option = self.registers.get(address);
 
         if option.is_none() {
-            return None;
+            None
         } else {
-            return Some(option.unwrap().clone());
+            Some(*option.unwrap())
         }
     }
     /// Returns the Instruction struct at memory[address] as Option
     pub fn get_memory(&self, address: usize) -> Option<Instruction> {
         let option = self.memory.get(address);
         if option.is_none() {
-            return None;
+            None
         } else {
-            return Some(option.unwrap().clone());
+            Some(option.unwrap().clone())
         }
     }
+    /// Returns current counter log of program counter
     pub fn get_counter_log(&self) -> Vec<usize> {
-        return self.counter_log.clone();
+        self.counter_log.clone()
+    }
+
+    /// Returns the current instruction register values    
+    pub fn quick_access_regs(&self, instruction_to_run: Instruction) -> Vec<u8> {
+        // All binary of length 4 can be coerced into u8, and having all three
+        // arguments available as numbers can be useful for instructions
+        let reg_x = u8::from_str_radix(instruction_to_run.binary_contents[1].as_str(), 2).unwrap();
+        let reg_y = u8::from_str_radix(instruction_to_run.binary_contents[2].as_str(), 2).unwrap();
+        let reg_z = u8::from_str_radix(instruction_to_run.binary_contents[3].as_str(), 2).unwrap();
+
+        return vec![reg_x, reg_y, reg_z];
+    }
+
+    // Get last data as i8
+    pub fn get_ending_data(&self) -> Result<i8, RuntimeErr> {
+        let _instruction_to_run = self.get_memory(self.get_program_counter()).unwrap();
+
+        return signed_binary_conversion(
+            self.get_memory(self.get_program_counter())
+                .unwrap()
+                .binary_contents[2..]
+                .join("")
+                .as_str(),
+        );
+    }
+
+    // Below are the functions for each instruction
+
+    pub fn perform_data(&mut self) -> Result<(), RuntimeErr> {
+        Err(RuntimeErr::InstructionIsData)
+    }
+
+    pub fn perform_halt(&mut self) -> Result<(), RuntimeErr> {
+        Err(RuntimeErr::Halt)
+    }
+
+    pub fn perform_nop(&mut self) -> Result<(), RuntimeErr> {
+        Ok(())
+    }
+
+    pub fn perform_read(&mut self) -> Result<(), RuntimeErr> {
+        if self.is_headless() {
+            let next_number = self.get_next_input();
+            if next_number.is_none() {
+                Err(RuntimeErr::TooManyInputs)
+            } else {
+                self.write_reg(self.current_regs[0], next_number.unwrap())
+            }
+        } else {
+            loop {
+                let mut line = String::new();
+                if self.is_debug() {
+                    let w = terminal::stdout();
+                    let _ = w.act(Action::ShowCursor);
+                    let _ = w.act(Action::EnableBlinking);
+                    let _ = w.act(Action::MoveCursorTo(0, 28)).unwrap();
+                    print!("{}", "Enter number:".on_yellow().black());
+                    let _ = w.act(Action::MoveCursorTo(14, 28)).unwrap();
+                    print!("                                 ");
+                    let _ = w.act(Action::MoveCursorTo(14, 28)).unwrap();
+                    stdin().lock().read_line(&mut line).unwrap();
+                    let _ = w.act(Action::DisableBlinking);
+                    let _ = w.act(Action::HideCursor);
+                } else {
+                    println!("{}", "Enter number:".on_yellow().black());
+                    io::stdin().read_line(&mut line).unwrap();
+                }
+                line = line.trim().to_string();
+                if line == "q" {
+                    return Err(RuntimeErr::Halt);
+                }
+                let number = line.parse::<i16>();
+                if number.is_ok() {
+                    if self.is_debug() {
+                        let w = terminal::stdout();
+                        w.act(Action::MoveCursorTo(16, 29)).unwrap();
+                        print!("                                        ");
+                    }
+                    return self.write_reg(self.current_regs[0], number.unwrap());
+                }
+                if self.is_debug() {
+                    let w = terminal::stdout();
+                    w.act(Action::MoveCursorTo(16, 29)).unwrap();
+                    print!("Invalid number! Please try again...");
+                } else {
+                    println!("Invalid number! Please try again...");
+                }
+            }
+        }
+    }
+
+    pub fn perform_write(&mut self) -> Result<(), RuntimeErr> {
+        if self.is_headless() {
+            let read_num = self.read_reg(self.current_regs[0])?;
+            self.add_output(read_num);
+        } else if self.is_debug() {
+            let w = terminal::stdout();
+            w.act(Action::MoveCursorTo(50, 8)).unwrap();
+            let to_print = format!("{:<10}", self.read_reg(self.current_regs[0])?);
+            print!("{}", to_print);
+        } else {
+            println!(
+                "{}\n{}",
+                "HMMM OUT:".on_green().black(),
+                self.read_reg(self.current_regs[0])?
+            );
+        }
+        Ok(())
+    }
+
+    pub fn perform_setn(&mut self) -> Result<(), RuntimeErr> {
+        self.write_reg(self.current_regs[0], self.get_ending_data()? as i16)
+    }
+
+    pub fn perform_loadr(&mut self) -> Result<(), RuntimeErr> {
+        let index = self.read_reg(self.current_regs[1]);
+
+        if index.is_err() {
+            return Err(index.unwrap_err());
+        }
+
+        let index = index.unwrap();
+
+        if !(0..=255).contains(&index) {
+            return Err(RuntimeErr::InvalidMemoryLocation);
+        }
+
+        let data = self.read_mem(index as u8);
+
+        if data.is_err() {
+            return Err(data.unwrap_err());
+        }
+
+        self.write_reg(self.current_regs[0], data.unwrap())
+    }
+
+    pub fn perform_storer(&mut self) -> Result<(), RuntimeErr> {
+        let index = self.read_reg(self.current_regs[1]);
+        if index.is_err() {
+            return Err(index.unwrap_err());
+        }
+
+        let index = index.unwrap();
+
+        if !(0..=255).contains(&index) {
+            return Err(RuntimeErr::InvalidMemoryLocation);
+        }
+
+        let data = self.read_reg(self.current_regs[1] as u8)?;
+
+        self.write_mem(index as u8, data)
+    }
+
+    pub fn perform_popr(&mut self) -> Result<(), RuntimeErr> {
+        let reg_y_data = self.read_reg(self.current_regs[1])?;
+
+        let reg_y_data = reg_y_data;
+
+        if !(0..=255).contains(&reg_y_data) {
+            return Err(RuntimeErr::InvalidMemoryLocation);
+        }
+
+        let _change_reg = self.write_reg(self.current_regs[1], reg_y_data - 1)?;
+
+        let reg_y_data = reg_y_data as u8;
+
+        let mem_data = self.read_mem(reg_y_data - 1)?;
+
+        self.write_reg(self.current_regs[0], mem_data)
+    }
+
+    pub fn perform_pushr(&mut self) -> Result<(), RuntimeErr> {
+        let reg_y_data = self.read_reg(self.current_regs[1])?;
+
+        if !(0..=255).contains(&reg_y_data) {
+            return Err(RuntimeErr::InvalidMemoryData);
+        }
+
+        let data = self.read_reg(self.current_regs[0])?;
+
+        let _mem_write = self.write_mem(reg_y_data as u8, data);
+
+        self.write_reg(self.current_regs[1], reg_y_data + 1)
+    }
+
+    pub fn perform_loadn(&mut self) -> Result<(), RuntimeErr> {
+        let ending_data = self.get_ending_data()?;
+
+        let memory_data = self.read_mem(ending_data as u8)?;
+
+        self.write_reg(self.current_regs[0], memory_data)
+    }
+
+    pub fn perform_storen(&mut self) -> Result<(), RuntimeErr> {
+        let ending_data = self.get_ending_data()?;
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+
+        self.write_mem(ending_data as u8, reg_x_data)
+    }
+
+    pub fn perform_addn(&mut self) -> Result<(), RuntimeErr> {
+        let ending_data = self.get_ending_data()?;
+
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+
+        self.write_reg(self.current_regs[0], reg_x_data + ending_data as i16)
+    }
+
+    pub fn perform_copy(&mut self) -> Result<(), RuntimeErr> {
+        let reg_y_data = self.read_reg(self.current_regs[1])?;
+
+        self.write_reg(self.current_regs[0], reg_y_data)
+    }
+
+    pub fn perform_neg(&mut self) -> Result<(), RuntimeErr> {
+        let reg_y_data = self.read_reg(self.current_regs[1])?;
+
+        self.write_reg(self.current_regs[0], -reg_y_data)
+    }
+
+    pub fn perform_arithmetic(&mut self, name: &str) -> Result<(), RuntimeErr> {
+        let reg_z_data = self.read_reg(self.current_regs[2])?;
+
+        let reg_y_data = self.read_reg(self.current_regs[1])?;
+
+        if reg_z_data == 0 && name == "div" {
+            return Err(RuntimeErr::DivideByZero);
+        }
+        // Coerce to a higher level data type
+        // so that we can detect an out of bounds error
+        let result: i32 = match name {
+            "add" => reg_y_data as i32 + reg_z_data as i32,
+            "sub" => reg_y_data as i32 - reg_z_data as i32,
+            "mul" => reg_y_data as i32 * reg_z_data as i32,
+            "div" => reg_y_data as i32 / reg_z_data as i32,
+            "mod" => reg_y_data as i32 % reg_z_data as i32,
+            _ => 0,
+        };
+
+        if result > i16::MAX as i32 || result < i16::MIN as i32 {
+            return Err(RuntimeErr::RegisterOutOfBounds);
+        }
+
+        self.write_reg(self.current_regs[0], result as i16)
+    }
+
+    pub fn perform_jumpr(&mut self) -> Result<(), RuntimeErr> {
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+        if reg_x_data < 0 {
+            Err(RuntimeErr::InvalidProgramCounter)
+        } else {
+            self.just_updated_pc = true;
+            self.update_pc(reg_x_data as usize)
+        }
+    }
+
+    pub fn perform_jumpn(&mut self) -> Result<(), RuntimeErr> {
+        self.just_updated_pc = true;
+        self.update_pc(self.get_ending_data()? as usize)
+    }
+
+    pub fn perform_jeqzn(&mut self) -> Result<(), RuntimeErr> {
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+        if reg_x_data == 0 {
+            self.just_updated_pc = true;
+            self.update_pc(self.get_ending_data()? as usize)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn perform_jnezn(&mut self) -> Result<(), RuntimeErr> {
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+        if reg_x_data != 0 {
+            self.just_updated_pc = true;
+            self.update_pc(self.get_ending_data()? as usize)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn perform_jgtzn(&mut self) -> Result<(), RuntimeErr> {
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+        if reg_x_data > 0 {
+            self.just_updated_pc = true;
+            self.update_pc(self.get_ending_data()? as usize)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn perform_jltzn(&mut self) -> Result<(), RuntimeErr> {
+        let reg_x_data = self.read_reg(self.current_regs[0])?;
+        if reg_x_data < 0 {
+            self.just_updated_pc = true;
+            self.update_pc(self.get_ending_data()? as usize)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn perform_calln(&mut self) -> Result<(), RuntimeErr> {
+        let _update_rg = self.write_reg(
+            self.current_regs[0],
+            (self.get_program_counter() + 1) as i16,
+        )?;
+
+        self.just_updated_pc = true;
+
+        self.update_pc(self.get_ending_data()? as usize)
     }
 }
 
 pub fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
-    let is_negative: bool = { binary.starts_with("1") };
+    let is_negative: bool = { binary.starts_with('1') };
     let mut binary_mut: String = binary.to_owned();
     if is_negative {
         binary_mut = binary.chars().rev().collect();
@@ -1105,13 +1254,13 @@ pub fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
         let mut temp_string: String = "".to_string();
 
         for i in binary_mut.chars() {
-            if found_1 == true {
+            if found_1 {
                 if i == '1' {
                     temp_string += "0";
                 } else {
                     temp_string += "0";
                 }
-            } else if i == '1' && found_1 == false {
+            } else if i == '1' && !found_1 {
                 found_1 = true;
                 temp_string += "1";
             }
@@ -1127,9 +1276,9 @@ pub fn signed_binary_conversion(binary: &str) -> Result<i8, RuntimeErr> {
     }
 
     if is_negative {
-        return Ok(0 - decoded_signed.unwrap());
+        Ok(0 - decoded_signed.unwrap())
     } else {
-        return Ok(decoded_signed.unwrap());
+        Ok(decoded_signed.unwrap())
     }
 }
 

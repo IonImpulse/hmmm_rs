@@ -1,0 +1,2 @@
+0   read r1     # read dividend from the user
+1   write

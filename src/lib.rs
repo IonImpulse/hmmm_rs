@@ -9,8 +9,14 @@ use std::*;
 use terminal::*;
 
 pub mod simulator;
+pub mod autograder;
 use simulator::*;
+use autograder::*;
 
+// File extension for HMMM files
+// "Compiled" is really just a 1-to-1 mapping of the
+// original file to binary, but it's more compact and
+// does not support comments
 static UNCOMPILED: &str = ".hmmm";
 static COMPILED: &str = ".hb";
 
@@ -53,7 +59,11 @@ pub fn raise_compile_error(
         error,
     );
 
-    println!("{} \"{}\"\n", " RAW TEXT:".on_red().white().bold(), raw_line.white(),);
+    println!(
+        "{} \"{}\"\n",
+        " RAW TEXT:".on_red().white().bold(),
+        raw_line.white(),
+    );
     println!("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀");
     println!("█           Interpreted As: ");
     println!("█ Line █ Command █ Arguments ");
@@ -66,7 +76,7 @@ pub fn raise_compile_error(
 /// the program gracefully
 pub fn raise_runtime_error(sim: &Simulator, error: &RuntimeErr) {
     // Easy way to display information: show the debug screen!
-    let _debug_result = print_debug_screen(&sim);
+    let _debug_result = print_debug_screen(sim);
     let current_line = sim.get_program_counter();
 
     let w = terminal::stdout();
@@ -104,15 +114,10 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let mut debug_screen_lines: Vec<String> = Vec::new();
 
     debug_screen_lines.push(format!(
-        "{}",
-        "█▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█▀▀▀▀▀▀▀▀▀▀█\n",
-    ));
-
-    debug_screen_lines.push(format!(
         "{}{}{}",
-        "█          █ ",
-        " REGISTER CONTENTS ".bold().on_blue(),
-        " █          █\n",
+        "█▀▀▀▀▀▀▀▀▀▀█",
+        "  REGISTER CONTENTS  ".bold().on_blue(),
+        "█▀▀▀▀▀▀▀▀▀▀█\n",
     ));
 
     for row in 0..4 {
@@ -132,12 +137,8 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             &sim.get_register((row * 4) + 3).unwrap_or(0),
         ));
     }
-    debug_screen_lines.push(format!("{}", 
-        "█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n"
-    ));
-    debug_screen_lines.push(format!("{}", 
-        "█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n"
-    ));
+    debug_screen_lines.push("█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\n".to_string());
+    debug_screen_lines.push("█    █   0  █   1  █   2  █   3  █   4  █   5  █   6  █   7  █   8  █   9  █   A  █   B  █   C  █   D  █   E  █   F  █\n".to_string());
     let address_chars = vec![
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
     ];
@@ -158,17 +159,14 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             let instruction_text;
             if current_pc == &memory_index {
                 instruction_text = current_instruction.as_hex().on_green();
-            } else {
-                if current_instruction.instruction_type.names[0] == "data" {
-                    if current_instruction.binary_contents == vec!["0000","0000","0000","0000"] {
-                        instruction_text = current_instruction.as_hex().on_black();
-                    } else {
-                        instruction_text = current_instruction.as_hex().on_yellow().black();
-                    }
-
+            } else if current_instruction.instruction_type.names[0] == "data" {
+                if current_instruction.binary_contents == vec!["0000", "0000", "0000", "0000"] {
+                    instruction_text = current_instruction.as_hex().on_black();
                 } else {
-                    instruction_text = current_instruction.as_hex().on_purple();
+                    instruction_text = current_instruction.as_hex().on_yellow().black();
                 }
+            } else {
+                instruction_text = current_instruction.as_hex().on_purple();
             }
 
             to_print = format!("{} {} █", to_print, instruction_text);
@@ -177,9 +175,7 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
         debug_screen_lines.push(format!("{}\n", to_print));
     }
 
-    debug_screen_lines.push(format!("{}", 
-        "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n"
-    ));
+    debug_screen_lines.push("▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\n".to_string());
 
     // Create terminal object to print out the debug screen
     let mut w = terminal::stdout();
@@ -231,35 +227,44 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
         for (i, c) in memory_ir.instruction_type.arguments.chars().enumerate() {
             let result: String = match c {
                 'r' => {
-                    format!("{}",u8::from_str_radix(memory_ir.binary_contents[i + 1].as_str(), 2).unwrap())
-                },
+                    format!(
+                        "{}",
+                        u8::from_str_radix(memory_ir.binary_contents[i + 1].as_str(), 2).unwrap()
+                    )
+                }
                 's' => {
                     let converted = signed_binary_conversion(
-                        memory_ir.binary_contents[i+1..i+3].join("").as_str(),
-                    ).unwrap();
+                        memory_ir.binary_contents[i + 1..i + 3].join("").as_str(),
+                    )
+                    .unwrap();
 
                     format!("{}", converted)
-                },
+                }
                 'u' => {
-                    let converted = u8::from_str_radix(memory_ir.binary_contents[i+1..i+3].join("").as_str(), 2).unwrap();
+                    let converted = u8::from_str_radix(
+                        memory_ir.binary_contents[i + 1..i + 3].join("").as_str(),
+                        2,
+                    )
+                    .unwrap();
                     format!("{}", converted)
-                },
+                }
                 'n' => {
-                    let converted = i32::from_str_radix(memory_ir.binary_contents.join("").as_str(), 2).unwrap();
+                    let converted =
+                        i32::from_str_radix(memory_ir.binary_contents.join("").as_str(), 2)
+                            .unwrap();
                     format!("{}", converted)
-                },
+                }
                 _ => String::from(""),
             };
-            
-            if result != "" {
+            if !result.is_empty() {
                 to_print = to_print.replacen("_", result.as_str(), 1);
             }
-
-
         }
-        
         if to_print.len() > 45 {
-            print!("{:<45}", to_print.drain(..40).collect::<String>().trim().bold());
+            print!(
+                "{:<45}",
+                to_print.drain(..40).collect::<String>().trim().bold()
+            );
             w.act(Action::MoveCursorTo(75, 3)).unwrap();
             print!("{:<45}", to_print.trim().bold());
         } else {
@@ -267,7 +272,6 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
             w.act(Action::MoveCursorTo(75, 3)).unwrap();
             print!("{:<45}", "");
         }
-
     }
 
     // Print HMMM output
@@ -275,60 +279,9 @@ pub fn print_debug_screen(sim: &Simulator) -> terminal::error::Result<()> {
     let to_print = format!("{}", " HMMM OUT: ".on_green().white().bold());
     print!("{}", to_print);
 
-    
     w.flush()?;
 
     Ok(())
-}
-
-/// Function to compile a vec of HMMM instructions into
-/// a Vec of Instruction structs
-pub fn compile_hmmm(uncompiled_text: Vec<String>) -> Result<Vec<Instruction>, CompileErr> {
-    let mut line_counter = 0;
-    let mut compiled_text: Vec<Instruction> = Vec::new();
-
-    for (index, line) in uncompiled_text.iter().enumerate() {
-        if !(line.trim().starts_with("#")) && line.len() > 2 {
-            let mut line_parts: Vec<String> = line
-                .split(&[',', ' ', '\t'][..])
-                .map(|a| String::from(a))
-                .collect();
-            let line_number = line_parts.get(0).unwrap().trim().parse::<i128>();
-            let comment_part = line_parts.iter().position(|a| a.starts_with("#"));
-
-            if comment_part.is_some() {
-                line_parts.drain(comment_part.unwrap()..);
-            }
-
-            let line_parts: Vec<String> = String::from(line_parts.join(" ").trim())
-                .split_whitespace()
-                .map(|a| String::from(a))
-                .collect();
-
-            let cleaned_line = String::from(line_parts[1..].join(" ")).to_lowercase();
-            if line_number.is_err() {
-                raise_compile_error(index, CompileErr::LineNumberNotPresent, line, line_parts);
-                return Err(CompileErr::LineNumberNotPresent);
-            } else {
-                if line_number.unwrap() != line_counter {
-                    raise_compile_error(index, CompileErr::InvalidLineNumber, line, line_parts);
-                    return Err(CompileErr::InvalidLineNumber);
-                } else {
-                    let next_instruction = Instruction::new_from_text(cleaned_line.as_str());
-                    if next_instruction.is_err() {
-                        let err = next_instruction.unwrap_err();
-                        raise_compile_error(index, err.clone(), line, line_parts);
-                        return Err(err);
-                    } else {
-                        compiled_text.push(next_instruction.unwrap());
-                        line_counter += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(compiled_text)
 }
 
 /// Function to read a vec of binary HMMM text into
@@ -423,6 +376,11 @@ pub fn main() -> terminal::error::Result<()> {
                  .long("speed")
                  .takes_value(true)
                  .help("Sets the multiplier (speed) of debug mode (eg: .5 is half speed, 2 is double)"))
+        .arg(Arg::with_name("autograder")
+                 .short("a")
+                 .long("autograder")
+                 .takes_value(true)
+                 .help("Toggles the AutoGrader functionality, expecting a test string to be given. If enabled, expects a directory path instead of a file path for --input and --output. --debug, --no-run, and --speed are ignored in this mode."))         
         .get_matches();
 
     if matches.value_of("input").is_none() {
@@ -431,29 +389,24 @@ pub fn main() -> terminal::error::Result<()> {
     } else {
         // Print out startup message
         println!(
-            "{}{}",
-            "██    ██  ████    ████ ".yellow(),
-            " ████    ████  ████    ████"
+            "{} ████    ████  ████    ████",
+            "██    ██  ████    ████ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██ ██  ██ ██ ".yellow(),
-            " ██ ██  ██ ██  ██ ██  ██ ██"
+            "{} ██ ██  ██ ██  ██ ██  ██ ██",
+            "██    ██  ██ ██  ██ ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "████████  ██  ████  ██ ".yellow(),
-            " ██  ████  ██  ██  ████  ██"
+            "{} ██  ████  ██  ██  ████  ██",
+            "████████  ██  ████  ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██   ██   ██ ".yellow(),
-            " ██   ██   ██  ██   ██   ██"
+            "{} ██   ██   ██  ██   ██   ██",
+            "██    ██  ██   ██   ██ ".yellow()
         );
         println!(
-            "{}{}",
-            "██    ██  ██        ██ ".yellow(),
-            " ██        ██  ██        ██"
+            "{} ██        ██  ██        ██",
+            "██    ██  ██        ██ ".yellow()
         );
         println!(
             "{}",
@@ -465,9 +418,25 @@ pub fn main() -> terminal::error::Result<()> {
                 .on_white()
         );
 
-        println!("\n");
+        println!();
 
         let file_path: &str = matches.value_of("input").unwrap().trim_start_matches(".\\");
+
+        if matches.value_of("autograder").is_some() {
+            println!("{}\n", "AutoGrader Mode Enabled".bold().on_green());
+            let path = file_path.trim_matches(&['\\', '/'] as &[_]);
+            let mut autograder = AutoGrader::new_from_cmd(path, matches.value_of("autograder").unwrap());
+            autograder.grade_all();
+            autograder.print_results();
+            let export_result = autograder.export_results(path);
+
+            if export_result.is_err() {
+                println!("\n{}\n", "AutoGrader Export Failed".bold().on_red());
+            } else {
+                println!("\n{} {}\n", "AutoGrader Export Successful:".bold().on_green(), export_result.unwrap().bold());
+            }
+            exit(0);
+        }
 
         // Setup the vec for the compiled Instructions
         let compiled_text: Vec<Instruction>;
@@ -478,7 +447,7 @@ pub fn main() -> terminal::error::Result<()> {
             let uncompiled_text = load_file(file_path).unwrap();
 
             // Then, compile it into Instruction structs
-            let compile_result = compile_hmmm(uncompiled_text);
+            let compile_result = Simulator::compile_hmmm(uncompiled_text, false);
 
             if compile_result.is_err() {
                 exit(compile_result.unwrap_err().as_code())
@@ -562,31 +531,44 @@ pub fn main() -> terminal::error::Result<()> {
         if !matches.is_present("no-run") {
             // Create it as new struct from compiled HMMM
             let mut simulator = Simulator::new(compiled_text);
-            let debug_multiplier = matches.value_of("speed").unwrap_or("1").parse::<f64>().unwrap_or(1.0);
+            let debug_multiplier = matches
+                .value_of("speed")
+                .unwrap_or("1")
+                .parse::<f64>()
+                .unwrap_or(1.0);
 
             if matches.is_present("debug") {
                 println!("{}", "ENTERING DEBUGGING MODE...".on_red());
-                simulator.debug = true;
-                thread::sleep(time::Duration::from_millis((1000. / debug_multiplier) as u64));
+                simulator.set_debug(true);
+                thread::sleep(time::Duration::from_millis(
+                    (1000. / debug_multiplier) as u64,
+                ));
                 terminal.act(Action::ClearTerminal(Clear::All))?;
                 terminal.act(Action::DisableBlinking)?;
                 terminal.act(Action::HideCursor)?;
             }
 
             loop {
-                if simulator.debug == true {
+                if simulator.is_debug() {
                     print_debug_screen(&mut simulator)?;
-                    thread::sleep(time::Duration::from_millis((500. / debug_multiplier) as u64));
+                    thread::sleep(time::Duration::from_millis(
+                        (500. / debug_multiplier) as u64,
+                    ));
                 }
                 // Attempt to run a step in the simulator
                 let result = &simulator.step();
                 // If it's an error, raise it
                 if result.is_err() {
+                    // Don't trap the user without a cursor,
+                    // make sure to show it on exit
+                    // Hopefully the program doesn't hard crash because if it does,
+                    // the cursor might not be visible
+                    terminal.act(Action::ShowCursor)?;
                     let result_err = result.as_ref().unwrap_err();
                     // If the error is Halt, exit quietly, as that is the
                     // program successfully finishing
                     if result_err == &RuntimeErr::Halt {
-                        if simulator.debug == true {
+                        if simulator.is_debug() {
                             terminal.act(Action::MoveCursorTo(0, 31))?;
                         }
 
@@ -599,19 +581,19 @@ pub fn main() -> terminal::error::Result<()> {
                     } else {
                         // If not, raise that error!
                         terminal.act(Action::ClearTerminal(Clear::All))?;
-                        raise_runtime_error(&simulator, &result_err);
-                        let exit_code = &result_err.clone().as_code();
+                        // Prints out the debug screen as well as the the error
+                        raise_runtime_error(&simulator, result_err);
+                        let exit_code = &result_err.as_code();
 
                         // Move the terminal prompt to the bottom of the screen
                         for _ in 0..16 {
                             println!("\n");
                         }
-                        exit(exit_code.clone());
+                        exit(*exit_code);
                     }
                 }
             }
         }
-
         Ok(())
     }
 }
