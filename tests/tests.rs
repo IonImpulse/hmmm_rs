@@ -32,17 +32,6 @@ fn compile_uncompile_binary_test() {
 }
 
 #[test]
-fn does_not_compile_test() {
-    // Load file
-    let initial_file = load_file("tests/does_not_compile.hmmm").unwrap();
-    // Compile - should fail
-    let compile_result = Simulator::compile_hmmm(initial_file, true);
-
-    assert_eq!(compile_result.unwrap_err(), CompileErr::InvalidLineNumber);
-
-}
-
-#[test]
 fn read_write_memory() {
     // Create simulator object
     let mut sim = create_dummy_simulator();
