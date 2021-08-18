@@ -1,13 +1,8 @@
 [![Cargo Build](https://github.com/IonImpulse/HMMM-Rust/actions/workflows/rust.yml/badge.svg)](https://github.com/IonImpulse/HMMM-Rust/actions/workflows/rust.yml)
 # HMMM RS
-```
-██    ██  ████    ████  ████    ████  ████    ████
-██    ██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██  ██ ██
-████████  ██  ████  ██  ██  ████  ██  ██  ████  ██
-██    ██  ██   ██   ██  ██   ██   ██  ██   ██   ██
-██    ██  ██        ██  ██        ██  ██        ██
- HARVEY       MUDD       MINIATURE      MACHINE
-```
+
+![HMMM Banner](https://user-images.githubusercontent.com/24578597/129842880-32a5ca6f-21b1-4568-9ecc-ee88f00ed216.png)
+
 A Rust-based compiler, decompiler, debugger, and simulator for the [Harvey Mudd Miniature Machine (HMMM)](https://www.cs.hmc.edu/~cs5grad/cs5/hmmm/documentation/documentation.html)
 
 This program aims to be used as a drop-in upgrade to the original Python script written to use this "assembly" language. 
