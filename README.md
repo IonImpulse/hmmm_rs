@@ -56,9 +56,9 @@ EXAMPLE:
 -a "16, 2 | 16, 8;"
 ```
 
-The testcase "16, 2 | 16, 8;" means that the program should ask for input *exactly* twice, and will be given the values 16 and 2. Additionaly, it needs to output the numbers 16 and 8.
+The testcase "16, 2 | 16, 8;" means that the program should ask for input *exactly* twice, and those inputs will be 16 and 2. Additionally, it needs to output the numbers 16 and 8.
 
-You can chain as many testcases as you want together, so long as you seperate them with a semicolon.
+You can chain as many testcases as you want together, so long as you separate them with a semicolon.
 ```
 EXAMPLE:
 -a "16, 2 | 16, 8; 15, 2 | 15, 7; 64, 3 | 64, 21;"
