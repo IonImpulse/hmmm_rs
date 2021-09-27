@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, Stdin, Read};
 use std::process::*;
 use std::{thread, time};
 
@@ -541,7 +541,7 @@ pub fn main() -> terminal::error::Result<()> {
                 println!("{}", "ENTERING DEBUGGING MODE...".on_red());
                 simulator.set_debug(true);
                 thread::sleep(time::Duration::from_millis(
-                    (1000. / debug_multiplier) as u64,
+                    (200) as u64,
                 ));
                 terminal.act(Action::ClearTerminal(Clear::All))?;
                 terminal.act(Action::DisableBlinking)?;
@@ -551,9 +551,14 @@ pub fn main() -> terminal::error::Result<()> {
             loop {
                 if simulator.is_debug() {
                     print_debug_screen(&mut simulator)?;
-                    thread::sleep(time::Duration::from_millis(
-                        (500. / debug_multiplier) as u64,
-                    ));
+                    if debug_multiplier == 0. {
+                        let mut line = String::new();
+                        io::stdin().read_line(&mut line).unwrap();
+                    } else {
+                        thread::sleep(time::Duration::from_millis(
+                            (500. / debug_multiplier) as u64,
+                        ));
+                    }
                 }
                 // Attempt to run a step in the simulator
                 let result = &simulator.step();
